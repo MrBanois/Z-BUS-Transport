@@ -1,0 +1,256 @@
+-- ==========================================================
+-- 1. MASTER FILES
+-- ==========================================================
+
+-- Status
+INSERT INTO "STATUS" ("ID", "NAME")
+VALUES
+    ('1','On_Wait'),
+    ('2','Checked_In'),
+    ('3','Cancelled'),
+    ('4','No show');
+
+-- Vehicle_Type
+INSERT INTO "VEHICLE_TYPE" ("ID","NAME")
+VALUES
+    ('V0001', 'Van'),
+    ('V0002', 'Mini Van'),
+    ('V0003', 'Bus'),
+    ('V0004', 'Double Decker Bus'),
+    ('V0005', 'Minibus'),
+    ('V0006', 'Electric Bus'),
+    ('V0007', 'Modified Truck'),
+    ('V0008', 'Electric Car'),
+    ('V0009', 'Truck'),
+    ('V0010', 'Boat');
+
+--Department
+INSERT INTO "DEPARTMENT" ("ID","NAME")
+VALUES
+    ('D0001','Transport'),
+    ('D0002','Management'),
+    ('D0003','Public Relation'),
+    ('D0004','Finance'),
+    ('D0005','Staff'),
+    ('D0006','Civil Engineering'),
+    ('D0007','Computer Science'),
+    ('D0008','Multimedia'),
+    ('D0009','Architecture'),
+    ('D0010','Business');
+
+--Position
+INSERT INTO "POSITION" ("ID","NAME","PERMISSION")
+VALUES --Permission is to be determined
+    ('P0001','Driver','110001'),
+    ('P0002','Student','000001'),
+    ('P0003','Teaching Assistant','001001'),
+    ('P0004','Teacher','001101'),
+    ('P0005','Deputy Manager','111101'),
+    ('P0006','Department Head','111111'),
+    ('P0007','Admin','111111'),
+    ('P0008','Security','100000'),
+    ('P0009','Janitor','000000'),
+    ('P0010','Guest','000000');
+
+--Station
+INSERT INTO "STATION" ("ID","NAME","IS_ACTIVE")
+VALUES
+    ('S0001','MUT','T'),
+    ('S0002','KFC Nearby','T'),
+    ('S0003','7-11 Nearby','T'),
+    ('S0004','Lotus Nongchok', 'T'),
+    ('S0005','Shell Gas Station','F'),
+    ('S0006','Hospital','T'),
+    ('S0007','Big C Nongchok','T'),
+    ('S0008','Nongchok Park','T'),
+    ('S0009','Som Tam Restaurant','T'),
+    ('S0010','MUT Gate','T');
+
+INSERT INTO "VEHICLE" ("ID","PLATE_NO","SEAT","TYPE","IS_ACTIVE")
+VALUES
+    ('VH001','AB123',10,'V0001','T'),
+    ('VH002','CD421',30,'V0003','T'),
+    ('VH003','SD493',50,'V0004','T'),
+    ('VH004','PAS13',8,'V0002','T'),
+    ('VH005','MAI35',13,'V0001','F'),
+    ('VH006','12540',30,'V0003','T'),
+    ('VH007','OS024',32,'V0003','F'),
+    ('VH008','SQ12X',55,'V0004','T'),
+    ('VH009','1XR02',6,'V0002','F'),
+    ('VH010','SLS06',15,'V0001','T');
+
+-- Note: IDs are CHAR(10), POS/DEP are CHAR(5)
+INSERT INTO "USER" ("ID","F_NAME","L_NAME","EMAIL","PASSWORD","POS","DEP") VALUES 
+--Passwords
+--User 1, 11-15 : 1234
+--User 2 : 5312
+--User 3 : Galio
+--User 4 : Miqs02
+--User 5 : L92s1
+--User 6 : 920531
+--User 7 : Pois1r
+--User 8 : K01s,z!
+--User 9 : IAMADMIN
+--User 10 : S1@f6
+    ('U000000001', 'Somchai', 'Jaidee', 'somchai@mut.edu', 'eef344850fc90b065864720ae5507269', 'P0001', 'D0001'), -- Driver
+    ('U000000002', 'Sommai', 'Jarak', 'sommai@mut.edu', '41c39646a49410a6ebc24bb9c4245114', 'P0001', 'D0001'),  -- Driver
+    ('U000000003', 'Somkuan', 'Jaingam', 'somkuan@mut.edu', '6697db7795f0889a6542caf607a96d9f', 'P0001', 'D0001'), -- Driver
+    ('U000000004', 'Student', 'One', 'std1@mut.edu', '619bbd1bf175d6077396ff9d8a95ff1f', 'P0002', 'D0007'),
+    ('U000000005', 'Student', 'Two', 'std2@mut.edu', '2928e246698158c4a42a01c979e08ea2', 'P0002', 'D0007'),
+    ('U000000006', 'Student', 'Three', 'std3@mut.edu', '3929c687294fbafdcfcc4caae33d7eb9', 'P0002', 'D0007'),
+    ('U000000007', 'Teacher', 'A', 'tea1@mut.edu', '1cd67e9f9a11166d3ccaad1f98d63bef', 'P0004', 'D0005'),
+    ('U000000008', 'Teacher', 'B', 'tea2@mut.edu', 'd173ebd1ec5a4a04d7195fa3de557f9e', 'P0004', 'D0005'),
+    ('U000000009', 'Admin', 'System', 'admin@mut.edu', '57f2faeb50faf091bdc2115531048a88', 'P0007', 'D0002'),
+    ('U000000010', 'Staff', 'Member', 'staff@mut.edu', 'f0b06cb92c82756204d7162ddbe67889', 'P0004', 'D0001'),
+-- Adding more users to satisfy Report 3 (User Behavior) and Report 6 (Driver workload)
+    ('U000000011', 'Arirat', 'Srisuk', 'arirat@mut.edu', '4a129baa558dc3e0b02bc15a76e675a1', 'P0002', 'D0007'),
+    ('U000000012', 'Worapol', 'Thepthong', 'worapol@mut.edu', 'd0339168cb25c2d376b1e499302db12a', 'P0002', 'D0007'),
+    ('U000000013', 'Nantana', 'Jaidrong', 'nantana@mut.edu', 'cf34131b756c6e10282b984227655c41', 'P0001', 'D0001'),
+    ('U000000014', 'Somkuan', 'Jaingam', 'somkuan2@mut.edu', '3810defdba7cb02e31fbfcdd529e4ce6', 'P0001', 'D0001'),
+    ('U000000015', 'Sommai', 'Jarak', 'sommai2@mut.edu', '596b0c920c1968b0e6d5ecc60d4d2537', 'P0001', 'D0001');
+
+
+-- ROUTE
+INSERT INTO "ROUTE" ("ID","NAME","IS_ACTIVE")
+VALUES
+    ('R0001','MUT - KFC Nearby','T'),
+    ('R0002','MUT GATE - Park','T'),
+    ('R0003','Shell Station - MUT','T'),
+    ('R0004','GRAND_TRIP','T'),
+    ('R0005','Park - Hospital','T'),
+    ('R0006','MUT GATE - Hospital','T'),
+    ('R0007','Park - MUT Gate','T'),
+    ('R0008','Park - MUT','T'),
+    ('R0009','Shell Station - Park','T'),
+    ('R0010','Shell Station - MUT','T');
+
+-- ROUTE_DETAIL (Need 10+ entries mapping Stations to Routes)
+-- Format: STATION_NO, RID, STATION, TIME
+INSERT INTO "ROUTE_DETAIL" ("STATION_NO","RID","STATION","TIME") VALUES 
+('01','R0001','S0001', TO_TIMESTAMP('2025-04-12 09:00:00', 'YYYY-MM-DD HH24:MI:SS')),
+('02','R0001','S0004', TO_TIMESTAMP('2025-04-12 09:05:00', 'YYYY-MM-DD HH24:MI:SS')),
+('03','R0001','S0006', TO_TIMESTAMP('2025-04-12 09:10:00', 'YYYY-MM-DD HH24:MI:SS')),
+('01','R0002','S0001', TO_TIMESTAMP('2025-04-13 10:00:00', 'YYYY-MM-DD HH24:MI:SS')),
+('02','R0002','S0007', TO_TIMESTAMP('2025-04-13 10:05:00', 'YYYY-MM-DD HH24:MI:SS')),
+('03','R0002','S0009', TO_TIMESTAMP('2025-04-13 10:10:00', 'YYYY-MM-DD HH24:MI:SS')),
+('01','R0003','S0007', TO_TIMESTAMP('2025-04-14 11:00:00', 'YYYY-MM-DD HH24:MI:SS')),
+('02','R0003','S0008', TO_TIMESTAMP('2025-04-14 11:05:00', 'YYYY-MM-DD HH24:MI:SS')),
+('03','R0003','S0001', TO_TIMESTAMP('2025-04-14 11:10:00', 'YYYY-MM-DD HH24:MI:SS')),
+('01','R0004','S0010', TO_TIMESTAMP('2025-04-15 12:00:00', 'YYYY-MM-DD HH24:MI:SS')),
+('02','R0004','S0010', TO_TIMESTAMP('2025-04-15 12:10:00', 'YYYY-MM-DD HH24:MI:SS'));
+
+
+-- SCHEDULE (Need 10+ entries linking Route, Driver, Vehicle, and Time)
+-- Format: RID, TRIP_NO, DRIVER, VEHICLE, TIME_START, IS_ACTIVE
+-- Logic:
+-- R0001 starts at 09:00 (based on ROUTE_DETAIL)
+-- R0002 starts at 10:00 (based on ROUTE_DETAIL)
+-- R0003 starts at 11:00 (based on ROUTE_DETAIL)
+-- R0004 starts at 12:00 (based on ROUTE_DETAIL)
+
+INSERT INTO "SCHEDULE" ("RID","TRIP_NO","DRIVER","VEHICLE","TIME_START","IS_ACTIVE") VALUES 
+-- Route 1 Trips (Template starts 09:00)
+('R0001','01','U000000001','VH001', TO_TIMESTAMP('2025-04-12 09:00:00', 'YYYY-MM-DD HH24:MI:SS'), 'T'),
+('R0001','02','U000000001','VH001', TO_TIMESTAMP('2025-04-12 11:00:00', 'YYYY-MM-DD HH24:MI:SS'), 'T'),
+('R0001','03','U000000002','VH002', TO_TIMESTAMP('2025-04-12 13:00:00', 'YYYY-MM-DD HH24:MI:SS'), 'T'),
+('R0001','04','U000000003','VH002', TO_TIMESTAMP('2025-04-12 17:30:00', 'YYYY-MM-DD HH24:MI:SS'), 'T'), -- Late trip for Report 6
+
+-- Route 2 Trips (Template starts 10:00)
+('R0002','01','U000000002','VH002', TO_TIMESTAMP('2025-04-13 10:00:00', 'YYYY-MM-DD HH24:MI:SS'), 'T'),
+('R0002','02','U000000003','VH003', TO_TIMESTAMP('2025-04-13 12:00:00', 'YYYY-MM-DD HH24:MI:SS'), 'T'),
+
+-- Route 3 Trips (Template starts 11:00)
+('R0003','01','U000000003','VH004', TO_TIMESTAMP('2025-04-14 11:00:00', 'YYYY-MM-DD HH24:MI:SS'), 'T'),
+('R0003','02','U000000001','VH006', TO_TIMESTAMP('2025-04-14 15:00:00', 'YYYY-MM-DD HH24:MI:SS'), 'T'),
+
+-- Route 4 Trips (Template starts 12:00)
+('R0004','01','U000000002','VH008', TO_TIMESTAMP('2025-04-15 12:00:00', 'YYYY-MM-DD HH24:MI:SS'), 'T'),
+('R0004','02','U000000010','VH010', TO_TIMESTAMP('2025-04-15 14:00:00', 'YYYY-MM-DD HH24:MI:SS'), 'T'),
+('R0004','03','U000000001','VH001', TO_TIMESTAMP('2025-04-15 18:00:00', 'YYYY-MM-DD HH24:MI:SS'), 'T'); -- Late trip for Report 6
+
+
+
+-- ==========================================================
+-- 3. TRANSACTIONS: BOOKINGS
+-- ==========================================================
+
+-- Scenario 1: 2024 Data (for Yearly Comparison Report 1 & 2)
+INSERT INTO "BOOKING" ("BOOKING_ID", "USER", "DATE") VALUES 
+('B20240000001', 'U000000004', TO_TIMESTAMP('2024-05-10 08:00:00', 'YYYY-MM-DD HH24:MI:SS')),
+('B20240000002', 'U000000005', TO_TIMESTAMP('2024-05-10 08:30:00', 'YYYY-MM-DD HH24:MI:SS')),
+('B20240000003', 'U000000011', TO_TIMESTAMP('2024-06-15 10:00:00', 'YYYY-MM-DD HH24:MI:SS'));
+
+-- Scenario 2: 2025 Data (Current Year)
+INSERT INTO "BOOKING" ("BOOKING_ID", "USER", "DATE") VALUES 
+('B20250000001', 'U000000004', TO_TIMESTAMP('2025-04-12 08:00:00', 'YYYY-MM-DD HH24:MI:SS')), -- Student 1
+('B20250000002', 'U000000005', TO_TIMESTAMP('2025-04-12 08:10:00', 'YYYY-MM-DD HH24:MI:SS')), -- Student 2
+('B20250000003', 'U000000011', TO_TIMESTAMP('2025-04-12 09:00:00', 'YYYY-MM-DD HH24:MI:SS')), -- Arirat
+('B20250000004', 'U000000012', TO_TIMESTAMP('2025-04-12 09:00:00', 'YYYY-MM-DD HH24:MI:SS')), -- Worapol
+('B20250000005', 'U000000004', TO_TIMESTAMP('2025-04-12 09:15:00', 'YYYY-MM-DD HH24:MI:SS')), -- Student 1 (Repeat)
+('B20250000006', 'U000000011', TO_TIMESTAMP('2025-04-13 10:00:00', 'YYYY-MM-DD HH24:MI:SS')), -- Arirat (Route 2)
+('B20250000007', 'U000000001', TO_TIMESTAMP('2025-04-15 12:00:00', 'YYYY-MM-DD HH24:MI:SS')), -- Driver booking (test)
+('B20250000008', 'U000000012', TO_TIMESTAMP('2025-04-15 18:00:00', 'YYYY-MM-DD HH24:MI:SS')); -- Late trip
+
+-- ==========================================================
+-- 4. TRANSACTIONS: BOOKING DETAILS
+-- ==========================================================
+
+-- Status: 1=Wait, 2=Checked_in, 3=Cancelled, 4=No_Show
+
+-- 2024 Details
+INSERT INTO "BOOKING_DETAIL" ("BID", "NO", "ROUTE", "SCHEDULE", "STARTNO", "SRID", "ENDNO", "ERID", "SEAT", "QR_STRING", "CURRENT_STATUS") VALUES 
+('B20240000001', '01', 'R0001', '01', '01', 'R0001', '03', 'R0001', 1, 'QR001', '2'),
+('B20240000002', '01', 'R0001', '01', '01', 'R0001', '03', 'R0001', 1, 'QR002', '2'),
+('B20240000003', '01', 'R0002', '01', '01', 'R0002', '02', 'R0002', 1, 'QR003', '3'); -- Cancelled
+
+-- 2025 Details
+INSERT INTO "BOOKING_DETAIL" ("BID", "NO", "ROUTE", "SCHEDULE", "STARTNO", "SRID", "ENDNO", "ERID", "SEAT", "QR_STRING", "CURRENT_STATUS") VALUES 
+-- Trip 1 (R0001, Trip 01)
+('B20250000001', '01', 'R0001', '01', '01', 'R0001', '03', 'R0001', 1, 'QR101', '2'), -- Student 1: Checked In
+('B20250000002', '01', 'R0001', '01', '01', 'R0001', '03', 'R0001', 1, 'QR102', '2'), -- Student 2: Checked In
+('B20250000003', '01', 'R0001', '01', '01', 'R0001', '03', 'R0001', 1, 'QR103', '4'), -- Arirat: No Show
+('B20250000004', '01', 'R0001', '01', '01', 'R0001', '03', 'R0001', 1, 'QR104', '2'), -- Worapol: Checked In
+('B20250000005', '01', 'R0001', '01', '01', 'R0001', '03', 'R0001', 1, 'QR105', '3'), -- Student 1: Cancelled
+
+-- Trip 2 (R0002, Trip 01)
+('B20250000006', '01', 'R0002', '01', '01', 'R0002', '02', 'R0002', 1, 'QR201', '2'), -- Arirat: Checked In
+
+-- Trip 3 (R0004, Trip 03 - Late Trip)
+('B20250000008', '01', 'R0004', '03', '01', 'R0004', '02', 'R0004', 1, 'QR301', '2'); -- Worapol: Checked In
+
+-- ==========================================================
+-- 5. TRANSACTIONS: TRIP LOGS (Actual Driver Trips)
+-- ==========================================================
+
+-- Trip Log for R0001 Trip 01
+INSERT INTO "TRIP_LOG" ("LOG_ID", "DRIVER", "VEHICLE", "DATE", "TIME_START", "TIME_END") VALUES 
+('L000000001', 'U000000001', 'VH001', TO_DATE('2025-04-12', 'YYYY-MM-DD'), TO_TIMESTAMP('2025-04-12 09:00:00', 'YYYY-MM-DD HH24:MI:SS'), TO_TIMESTAMP('2025-04-12 09:30:00', 'YYYY-MM-DD HH24:MI:SS'));
+
+-- Trip Log for R0002 Trip 01
+INSERT INTO "TRIP_LOG" ("LOG_ID", "DRIVER", "VEHICLE", "DATE", "TIME_START", "TIME_END") VALUES 
+('L000000002', 'U000000002', 'VH002', TO_DATE('2025-04-13', 'YYYY-MM-DD'), TO_TIMESTAMP('2025-04-13 10:00:00', 'YYYY-MM-DD HH24:MI:SS'), TO_TIMESTAMP('2025-04-13 10:20:00', 'YYYY-MM-DD HH24:MI:SS'));
+
+-- Trip Log for R0004 Trip 03 (Late trip - After 17:00)
+INSERT INTO "TRIP_LOG" ("LOG_ID", "DRIVER", "VEHICLE", "DATE", "TIME_START", "TIME_END") VALUES 
+('L000000003', 'U000000001', 'VH001', TO_DATE('2025-04-15', 'YYYY-MM-DD'), TO_TIMESTAMP('2025-04-15 18:00:00', 'YYYY-MM-DD HH24:MI:SS'), TO_TIMESTAMP('2025-04-15 18:30:00', 'YYYY-MM-DD HH24:MI:SS'));
+
+-- ==========================================================
+-- 6. TRANSACTIONS: TRIP LOG DETAILS (Boarding/Alighting)
+-- ==========================================================
+
+-- Details for Trip 1 (R0001 Trip 01)
+-- We only add entries for people who actually 'Checked In' (Status 2)
+INSERT INTO "TRIP_LOG_DETAIL" ("LID", "BID", "NO", "TIME_GETIN", "TIME_GETOUT", "PASSENGER") VALUES 
+('L000000001', 'B20250000001', '01', TO_TIMESTAMP('2025-04-12 08:55:00', 'YYYY-MM-DD HH24:MI:SS'), TO_TIMESTAMP('2025-04-12 09:10:00', 'YYYY-MM-DD HH24:MI:SS'), 1),
+('L000000001', 'B20250000002', '01', TO_TIMESTAMP('2025-04-12 08:57:00', 'YYYY-MM-DD HH24:MI:SS'), TO_TIMESTAMP('2025-04-12 09:12:00', 'YYYY-MM-DD HH24:MI:SS'), 1),
+('L000000001', 'B20250000004', '01', TO_TIMESTAMP('2025-04-12 08:58:00', 'YYYY-MM-DD HH24:MI:SS'), TO_TIMESTAMP('2025-04-12 09:15:00', 'YYYY-MM-DD HH24:MI:SS'), 1);
+
+-- Details for Trip 2 (R0002 Trip 01)
+INSERT INTO "TRIP_LOG_DETAIL" ("LID", "BID", "NO", "TIME_GETIN", "TIME_GETOUT", "PASSENGER") VALUES 
+('L000000002', 'B20250000006', '01', TO_TIMESTAMP('2025-04-13 09:55:00', 'YYYY-MM-DD HH24:MI:SS'), TO_TIMESTAMP('2025-04-13 10:15:00', 'YYYY-MM-DD HH24:MI:SS'), 1);
+
+-- Details for Trip 3 (R0004 Trip 03 - Late)
+INSERT INTO "TRIP_LOG_DETAIL" ("LID", "BID", "NO", "TIME_GETIN", "TIME_GETOUT", "PASSENGER") VALUES 
+('L000000003', 'B20250000008', '01', TO_TIMESTAMP('2025-04-15 17:55:00', 'YYYY-MM-DD HH24:MI:SS'), TO_TIMESTAMP('2025-04-15 18:20:00', 'YYYY-MM-DD HH24:MI:SS'), 1);
+
+COMMIT;

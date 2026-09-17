@@ -1,0 +1,41 @@
+# Download Things
+docker pull container-registry.oracle.com/database/free:latest-lite
+
+# Make Volume
+docker volume create OracleDBData
+
+# Run The Thing
+docker run -d --name oracle-db -p 1521:1521 -e ORACLE_PWD="Admin" -v OracleDBData:/opt/oracle/oradata container-registry.oracle.com/database/free:latest-litedocker logs -f oracle-db
+
+#Run This if last one doesn't works
+docker run -d --name oracle-db -p 1521:1521 -e ORACLE_PWD="Admin" -v OracleDBData:/opt/oracle/oradata container-registry.oracle.com/database/free:latest-lite
+
+# Read Logs (Optional)
+docker logs -f oracle-db
+
+# Run Shell inside Image
+docker exec -it oracle-db sqlplus system/Admin@FREEPDB1
+
+#SQL 
+CREATE ROLE DEV;
+GRANT CREATE SESSION TO DEV;
+GRANT CREATE TABLE TO DEV;
+GRANT CREATE VIEW TO DEV;
+GRANT CREATE SEQUENCE TO DEV;
+GRANT CREATE PROCEDURE TO DEV;
+GRANT CREATE TRIGGER TO DEV;
+GRANT CREATE TYPE TO DEV;
+GRANT CREATE SYNONYM TO DEV;
+GRANT CREATE MATERIALIZED VIEW TO DEV;
+
+CREATE USER Nope IDENTIFIED BY "Koi";
+GRANT DEV TO Nope;
+ALTER USER Nope QUOTA UNLIMITED ON SYSTEM;
+
+#SQL Developer
+Name 		: LocalDB
+User		: Nope
+Password	: Koi
+Hostname	: localhost
+Port		: 1521
+Service Name	: FREEPDB1
