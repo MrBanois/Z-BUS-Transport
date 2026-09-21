@@ -1,0 +1,29 @@
+SELECT
+    TO_CHAR(B."DATE", 'FMMonth') AS "Month",
+    COUNT(BD."BID") AS "Booking Count",
+    SUM(BD."SEAT") AS "Seat Booked",
+
+    SUM(CASE
+        WHEN BD."CURRENT_STATUS" = '3' THEN BD."SEAT"
+        ELSE 0
+    END) AS "Cancelled",
+
+    SUM(CASE
+        WHEN BD."CURRENT_STATUS" = '2' THEN BD."SEAT"
+        ELSE 0
+    END) AS "Checked-In",
+
+    SUM(CASE
+        WHEN BD."CURRENT_STATUS" = '4' THEN BD."SEAT"
+        ELSE 0
+    END) AS "No-Show"
+
+FROM "BOOKING" B
+JOIN "BOOKING_DETAIL" BD
+    ON B."BOOKING_ID" = BD."BID"
+
+WHERE B."DATE" >= DATE '2025-01-01'
+  AND B."DATE" < DATE '2026-01-01'
+
+GROUP BY TO_CHAR(B."DATE", 'FMMonth')
+ORDER BY MIN(B."DATE");
