@@ -92,22 +92,22 @@ INSERT INTO "USER" ("ID","F_NAME","L_NAME","EMAIL","PASSWORD","POS","DEP") VALUE
 --User 8 : K01s,z!
 --User 9 : IAMADMIN
 --User 10 : S1@f6
-    ('U000000001', 'Somchai', 'Jaidee', 'somchai@mut.edu', 'eef344850fc90b065864720ae5507269', 'P0001', 'D0001'), -- Driver
-    ('U000000002', 'Sommai', 'Jarak', 'sommai@mut.edu', '41c39646a49410a6ebc24bb9c4245114', 'P0001', 'D0001'),  -- Driver
-    ('U000000003', 'Somkuan', 'Jaingam', 'somkuan@mut.edu', '6697db7795f0889a6542caf607a96d9f', 'P0001', 'D0001'), -- Driver
-    ('U000000004', 'Student', 'One', 'std1@mut.edu', '619bbd1bf175d6077396ff9d8a95ff1f', 'P0002', 'D0007'),
-    ('U000000005', 'Student', 'Two', 'std2@mut.edu', '2928e246698158c4a42a01c979e08ea2', 'P0002', 'D0007'),
-    ('U000000006', 'Student', 'Three', 'std3@mut.edu', '3929c687294fbafdcfcc4caae33d7eb9', 'P0002', 'D0007'),
-    ('U000000007', 'Teacher', 'A', 'tea1@mut.edu', '1cd67e9f9a11166d3ccaad1f98d63bef', 'P0004', 'D0005'),
-    ('U000000008', 'Teacher', 'B', 'tea2@mut.edu', 'd173ebd1ec5a4a04d7195fa3de557f9e', 'P0004', 'D0005'),
-    ('U000000009', 'Admin', 'System', 'admin@mut.edu', '57f2faeb50faf091bdc2115531048a88', 'P0007', 'D0002'),
-    ('U000000010', 'Staff', 'Member', 'staff@mut.edu', 'f0b06cb92c82756204d7162ddbe67889', 'P0004', 'D0001'),
+    ('U000000001', 'Somchai', 'Jaidee', 'somchai@mut.edu', 'eef344850fc90b065864720ae5507269', 'P0001', 'D0001','T',13500.00), -- Driver
+    ('U000000002', 'Sommai', 'Jarak', 'sommai@mut.edu', '41c39646a49410a6ebc24bb9c4245114', 'P0001', 'D0001','T',13500.00),  -- Driver
+    ('U000000003', 'Somkuan', 'Jaingam', 'somkuan@mut.edu', '6697db7795f0889a6542caf607a96d9f', 'P0001', 'D0001','T',13500.00), -- Driver
+    ('U000000004', 'Student', 'One', 'std1@mut.edu', '619bbd1bf175d6077396ff9d8a95ff1f', 'P0002', 'D0007','F', NULL),
+    ('U000000005', 'Student', 'Two', 'std2@mut.edu', '2928e246698158c4a42a01c979e08ea2', 'P0002', 'D0007','F', NULL),
+    ('U000000006', 'Student', 'Three', 'std3@mut.edu', '3929c687294fbafdcfcc4caae33d7eb9', 'P0002', 'D0007','F', NULL),
+    ('U000000007', 'Teacher', 'A', 'tea1@mut.edu', '1cd67e9f9a11166d3ccaad1f98d63bef', 'P0004', 'D0005','F', NULL),
+    ('U000000008', 'Teacher', 'B', 'tea2@mut.edu', 'd173ebd1ec5a4a04d7195fa3de557f9e', 'P0004', 'D0005','F', NULL),
+    ('U000000009', 'Admin', 'System', 'admin@mut.edu', '57f2faeb50faf091bdc2115531048a88', 'P0007', 'D0002','T',43500.00),
+    ('U000000010', 'Staff', 'Member', 'staff@mut.edu', 'f0b06cb92c82756204d7162ddbe67889', 'P0004', 'D0001','T',1500.00),
 -- Adding more users to satisfy Report 3 (User Behavior) and Report 6 (Driver workload)
-    ('U000000011', 'Arirat', 'Srisuk', 'arirat@mut.edu', '4a129baa558dc3e0b02bc15a76e675a1', 'P0002', 'D0007'),
-    ('U000000012', 'Worapol', 'Thepthong', 'worapol@mut.edu', 'd0339168cb25c2d376b1e499302db12a', 'P0002', 'D0007'),
-    ('U000000013', 'Nantana', 'Jaidrong', 'nantana@mut.edu', 'cf34131b756c6e10282b984227655c41', 'P0001', 'D0001'),
-    ('U000000014', 'Somkuan', 'Jaingam', 'somkuan2@mut.edu', '3810defdba7cb02e31fbfcdd529e4ce6', 'P0001', 'D0001'),
-    ('U000000015', 'Sommai', 'Jarak', 'sommai2@mut.edu', '596b0c920c1968b0e6d5ecc60d4d2537', 'P0001', 'D0001');
+    ('U000000011', 'Arirat', 'Srisuk', 'arirat@mut.edu', '4a129baa558dc3e0b02bc15a76e675a1', 'P0002', 'D0007','F', NULL),
+    ('U000000012', 'Worapol', 'Thepthong', 'worapol@mut.edu', 'd0339168cb25c2d376b1e499302db12a', 'P0002', 'D0007','F', NULL),
+    ('U000000013', 'Nantana', 'Jaidrong', 'nantana@mut.edu', 'cf34131b756c6e10282b984227655c41', 'P0001', 'D0001','F', NULL),
+    ('U000000014', 'Somkuan', 'Jaingam', 'somkuan2@mut.edu', '3810defdba7cb02e31fbfcdd529e4ce6', 'P0001', 'D0001','F', NULL),
+    ('U000000015', 'Sommai', 'Jarak', 'sommai2@mut.edu', '596b0c920c1968b0e6d5ecc60d4d2537', 'P0001', 'D0001','F', NULL);
 
 
 -- ROUTE
