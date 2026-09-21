@@ -1,0 +1,6 @@
+#Caches
+__pycache__
+
+#Any tempfiles
+TMP.*
+TEMP.*
