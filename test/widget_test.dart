@@ -19,6 +19,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('WHERE TO\nNEXT?'), findsOneWidget);
     expect(find.text('FIND DEPARTURES'), findsOneWidget);
+    await tester.tap(find.text('MORE'));
+    await tester.pumpAndSettle();
+    expect(find.text('01 / BOOKING & ACCOUNT'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('02 / MANAGEMENT'),
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('02 / MANAGEMENT'), findsOneWidget);
   });
 
   testWidgets('Passenger can reserve a seat and see a pass', (tester) async {
@@ -37,8 +46,15 @@ void main() {
     await tester.tap(find.text('RESERVE THIS TRIP').first);
     await tester.pumpAndSettle();
     expect(find.text('MAKE ROOM\nFOR THE RIDE.'), findsOneWidget);
-    await tester.ensureVisible(find.text('CONFIRM 1 SEAT'));
-    await tester.tap(find.text('CONFIRM 1 SEAT'));
+    await tester.ensureVisible(find.text('ADD TRIP · 1 SEAT'));
+    await tester.tap(find.text('ADD TRIP · 1 SEAT'));
+    await tester.pumpAndSettle();
+    expect(find.text('WHERE TO\nNEXT?'), findsOneWidget);
+    await tester.ensureVisible(find.text('REVIEW 1 TRIP'));
+    await tester.tap(find.text('REVIEW 1 TRIP'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('CONFIRM BOOKING'));
+    await tester.tap(find.text('CONFIRM BOOKING'));
     await tester.pumpAndSettle();
     expect(find.text('YOU ARE\nON BOARD.'), findsOneWidget);
   });
@@ -53,12 +69,12 @@ void main() {
     await tester.tap(find.text('ENTER ZBUS'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('ACCOUNT'));
+    await tester.tap(find.text('MY ACCOUNT'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).first, 'Updated Passenger');
     await tester.tap(find.text('FIND A TRIP'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('ACCOUNT'));
+    await tester.tap(find.text('MY ACCOUNT'));
     await tester.pumpAndSettle();
 
     expect(find.text('Updated Passenger'), findsWidgets);
@@ -70,16 +86,22 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(const ZBusApp());
-    await tester.ensureVisible(find.text('DRIVER'));
-    await tester.tap(find.text('DRIVER'));
+    await tester.enterText(find.byType(TextField).first, 'driver@mut.edu');
     await tester.ensureVisible(find.text('ENTER ZBUS'));
     await tester.tap(find.text('ENTER ZBUS'));
     await tester.pumpAndSettle();
-    expect(find.text('YOUR DAY\nON THE ROAD.'), findsOneWidget);
+    expect(find.text('MY DRIVING\nSCHEDULE.'), findsOneWidget);
     await tester.ensureVisible(find.text('START TRIP'));
     await tester.tap(find.text('START TRIP'));
     await tester.pumpAndSettle();
     expect(find.text('EVERY STOP\nCOUNTS.'), findsOneWidget);
+    expect(find.text('John Passenger'), findsOneWidget);
+    expect(find.text('Jane Passenger'), findsOneWidget);
+    await tester.ensureVisible(find.text('MARK NO-SHOW').last);
+    await tester.tap(find.text('MARK NO-SHOW').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('CONFIRM'));
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('OPEN CHECK-IN'));
     await tester.tap(find.text('OPEN CHECK-IN'));
     await tester.pumpAndSettle();
@@ -94,12 +116,15 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(const ZBusApp());
-    await tester.tap(find.text('ADMIN'));
+    await tester.enterText(find.byType(TextField).first, 'admin@mut.edu');
     await tester.ensureVisible(find.text('ENTER ZBUS'));
     await tester.tap(find.text('ENTER ZBUS'));
     await tester.pumpAndSettle();
     expect(find.text('THE NETWORK\nAT A GLANCE.'), findsOneWidget);
-    await tester.tap(find.text('ROUTES'));
+    await tester.ensureVisible(find.text('MANAGE ROUTES'));
+    await tester.drag(find.byType(ListView), const Offset(0, -250));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('MANAGE ROUTES'));
     await tester.pumpAndSettle();
     expect(find.text('LINES THROUGH\nNONG CHOK.'), findsOneWidget);
   });
@@ -127,6 +152,7 @@ void main() {
                   initialOrigin: stops[0],
                   initialDestination: stops[2],
                   reservations: reservations,
+                  bookingDraft: const [],
                   tripStarted: false,
                   scanned: false,
                   availableSeats: (trip) => trip.available,
@@ -134,6 +160,8 @@ void main() {
                   selectTrip: (_, _, _) {},
                   book: (_, _, _) {},
                   cancel: (_) {},
+                  cancelBooking: (_) {},
+                  checkout: () {},
                   selectReservation: (_) {},
                   onStart: () {},
                   onClose: () {},

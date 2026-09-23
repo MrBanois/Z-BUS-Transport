@@ -121,7 +121,7 @@ void main() {
       first.cancel(first.reservations.first.id);
 
       expect(first.reservations.first.status, ReservationStatus.cancelled);
-      expect(second.reservations.first.status, ReservationStatus.confirmed);
+      expect(second.reservations.first.status, ReservationStatus.onWait);
     });
 
     test('cancelling an initial reservation releases its seats', () {
@@ -133,6 +133,82 @@ void main() {
 
       expect(ledger.availableSeats(trips.first), 5);
     });
+
+    test('grouped booking shares an ID and gives every trip its own QR', () {
+      final ledger = ReservationLedger(initialReservations: const []);
+
+      final booked = ledger.bookGroup([
+        BookingDraftTrip(
+          trip: trips[2],
+          origin: stops[0],
+          destination: stops[2],
+          seats: 1,
+        ),
+        BookingDraftTrip(
+          trip: trips[3],
+          origin: stops[0],
+          destination: stops[4],
+          seats: 1,
+        ),
+      ]);
+
+      expect(booked, hasLength(2));
+      expect(booked[0].id, booked[1].id);
+      expect(booked[0].detailNumber, '01');
+      expect(booked[1].detailNumber, '02');
+      expect(booked[0].token, isNot(booked[1].token));
+    });
+
+    test(
+      'a detail can be cancelled without cancelling its booking siblings',
+      () {
+        final ledger = ReservationLedger(initialReservations: const []);
+        final booked = ledger.bookGroup([
+          BookingDraftTrip(
+            trip: trips[2],
+            origin: stops[0],
+            destination: stops[2],
+            seats: 1,
+          ),
+          BookingDraftTrip(
+            trip: trips[3],
+            origin: stops[0],
+            destination: stops[4],
+            seats: 1,
+          ),
+        ]);
+
+        ledger.cancel(booked.first.detailId);
+
+        expect(ledger.reservations[0].status, ReservationStatus.cancelled);
+        expect(ledger.reservations[1].status, ReservationStatus.onWait);
+      },
+    );
+
+    test('whole-booking cancellation cancels every active detail', () {
+      final ledger = ReservationLedger(initialReservations: const []);
+      final booked = ledger.bookGroup([
+        BookingDraftTrip(
+          trip: trips[2],
+          origin: stops[0],
+          destination: stops[2],
+          seats: 1,
+        ),
+        BookingDraftTrip(
+          trip: trips[3],
+          origin: stops[0],
+          destination: stops[4],
+          seats: 1,
+        ),
+      ]);
+
+      ledger.cancelBooking(booked.first.id);
+
+      expect(
+        ledger.reservations.map((reservation) => reservation.status),
+        everyElement(ReservationStatus.cancelled),
+      );
+    });
   });
 
   group('CheckInValidator', () {
@@ -141,7 +217,7 @@ void main() {
     test('accepts the correct trip and stop', () {
       expect(
         CheckInValidator.validate(
-          token: 'qr-bkg-240914-018',
+          token: 'qr-bkg-240914-018-01',
           activeTripId: trips.first.id,
           activeStop: stops[0],
           reservations: reservations,
@@ -164,7 +240,7 @@ void main() {
       );
       expect(
         CheckInValidator.validate(
-          token: 'QR-BKG-240914-018',
+          token: 'QR-BKG-240914-018-01',
           activeTripId: trips.first.id,
           activeStop: stops[1],
           reservations: reservations,

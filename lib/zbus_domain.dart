@@ -97,31 +97,67 @@ class ReservationLedger {
       requestedSeats: seats,
       availableSeats: availableSeats(trip),
     );
-    final id = 'BKG-260914-${nextGeneratedNumber.toString().padLeft(3, '0')}';
+    return bookGroup([
+      BookingDraftTrip(
+        trip: trip,
+        origin: origin,
+        destination: destination,
+        seats: seats,
+      ),
+    ]).single;
+  }
+
+  List<ReservationRecord> bookGroup(List<BookingDraftTrip> details) {
+    if (details.isEmpty) {
+      throw const BookingValidationException(
+        'Add at least one trip before confirming the booking.',
+      );
+    }
+    final seatsByTrip = <String, int>{};
+    for (final detail in details) {
+      final alreadyRequested = seatsByTrip[detail.trip.id] ?? 0;
+      BookingRules.validateSeatRequest(
+        requestedSeats: detail.seats,
+        availableSeats: availableSeats(detail.trip) - alreadyRequested,
+      );
+      seatsByTrip[detail.trip.id] = alreadyRequested + detail.seats;
+    }
+
+    final bookingId =
+        'BKG-260914-${nextGeneratedNumber.toString().padLeft(3, '0')}';
     nextGeneratedNumber++;
-    final reservation = ReservationRecord(
-      id,
-      trip.id,
-      trip.route,
-      origin,
-      destination,
-      trip.time,
-      seats,
-      ReservationStatus.confirmed,
-      'QR-$id',
-    );
-    _reservations.insert(0, reservation);
-    _seatAdjustments.update(
-      trip.id,
-      (reserved) => reserved + seats,
-      ifAbsent: () => seats,
-    );
-    return reservation;
+    final reservations = <ReservationRecord>[];
+    for (var index = 0; index < details.length; index++) {
+      final detail = details[index];
+      final detailNumber = (index + 1).toString().padLeft(2, '0');
+      final reservation = ReservationRecord(
+        bookingId,
+        detail.trip.id,
+        detail.trip.route,
+        detail.origin,
+        detail.destination,
+        detail.trip.time,
+        detail.seats,
+        ReservationStatus.onWait,
+        'QR-$bookingId-$detailNumber',
+        detailNumber,
+      );
+      reservations.add(reservation);
+      _seatAdjustments.update(
+        detail.trip.id,
+        (reserved) => reserved + detail.seats,
+        ifAbsent: () => detail.seats,
+      );
+    }
+    _reservations.insertAll(0, reservations);
+    return List.unmodifiable(reservations);
   }
 
   ReservationRecord cancel(String reservationId) {
     final index = _reservations.indexWhere(
-      (reservation) => reservation.id == reservationId,
+      (reservation) =>
+          reservation.detailId == reservationId ||
+          reservation.id == reservationId,
     );
     if (index < 0) {
       throw BookingValidationException(
@@ -141,6 +177,16 @@ class ReservationLedger {
       _seatAdjustments[current.tripId] = adjustedSeats;
     }
     return cancelled;
+  }
+
+  List<ReservationRecord> cancelBooking(String bookingId) {
+    final matching = _reservations
+        .where((reservation) => reservation.id == bookingId)
+        .toList();
+    if (matching.isEmpty) {
+      throw BookingValidationException('Booking $bookingId was not found.');
+    }
+    return [for (final reservation in matching) cancel(reservation.detailId)];
   }
 }
 

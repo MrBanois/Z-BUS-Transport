@@ -1,19 +1,36 @@
 enum ZRole { admin, passenger, driver }
 
+class SessionUser {
+  const SessionUser({
+    required this.name,
+    required this.email,
+    required this.position,
+    required this.role,
+    required this.allowedPages,
+  });
+
+  final String name, email, position;
+  final ZRole role;
+  final Set<ZPage> allowedPages;
+}
+
 enum ReservationStatus {
-  confirmed('Confirmed'),
-  checkedIn('Checked in'),
-  completed('Completed'),
-  cancelled('Cancelled');
+  onWait('1', 'On wait'),
+  checkedIn('2', 'Checked in'),
+  cancelled('3', 'Cancelled'),
+  noShow('4', 'No show');
 
-  const ReservationStatus(this.label);
-  final String label;
+  const ReservationStatus(this.code, this.label);
+  final String code, label;
 
-  bool get holdsSeats => this == ReservationStatus.confirmed;
+  bool get holdsSeats => this == ReservationStatus.onWait;
 }
 
 enum ZPage {
   dashboard,
+  departments,
+  positions,
+  users,
   staff,
   permissions,
   routes,
@@ -21,8 +38,10 @@ enum ZPage {
   schedules,
   vehicles,
   assignments,
+  drivers,
   search,
   seats,
+  bookingCart,
   confirmation,
   reservations,
   driverDay,
@@ -36,25 +55,30 @@ enum ZPage {
 
 extension ZPageInfo on ZPage {
   String get label => switch (this) {
-    ZPage.dashboard => 'Overview',
-    ZPage.staff => 'People',
-    ZPage.permissions => 'Access',
-    ZPage.routes => 'Routes',
-    ZPage.stops => 'Stops',
-    ZPage.schedules => 'Schedules',
-    ZPage.vehicles => 'Vehicles',
-    ZPage.assignments => 'Assignments',
+    ZPage.dashboard => 'Operations overview',
+    ZPage.departments => 'Manage departments',
+    ZPage.positions => 'Manage positions',
+    ZPage.users => 'Manage users',
+    ZPage.staff => 'Manage employees',
+    ZPage.permissions => 'Manage access',
+    ZPage.routes => 'Manage routes',
+    ZPage.stops => 'Manage stations',
+    ZPage.schedules => 'Manage schedules',
+    ZPage.vehicles => 'Manage vehicles',
+    ZPage.assignments => 'Manage assignments',
+    ZPage.drivers => 'Manage drivers',
     ZPage.search => 'Find a trip',
     ZPage.seats => 'Reserve seats',
+    ZPage.bookingCart => 'Booking cart',
     ZPage.confirmation => 'Your pass',
     ZPage.reservations => 'My reservations',
-    ZPage.driverDay => 'My day',
-    ZPage.driverTrip => 'Trip detail',
-    ZPage.checkIn => 'Check-in',
-    ZPage.completion => 'Trip summary',
-    ZPage.reports => 'Reports',
-    ZPage.profile => 'Account',
-    ZPage.states => 'Interface states',
+    ZPage.driverDay => 'My driving schedule',
+    ZPage.driverTrip => 'Active trip',
+    ZPage.checkIn => 'Scan passenger QR',
+    ZPage.completion => 'Completed trip',
+    ZPage.reports => 'Statistic reports',
+    ZPage.profile => 'My account',
+    ZPage.states => 'UI states',
   };
 }
 
@@ -140,9 +164,11 @@ class ReservationRecord {
     this.time,
     this.seats,
     this.status,
-    this.token,
-  );
-  final String id, tripId, route, from, to, time, token;
+    this.token, [
+    this.detailNumber = '01',
+  ]);
+  final String id, tripId, route, from, to, time, token, detailNumber;
+  String get detailId => '$id-$detailNumber';
   final int seats;
   final ReservationStatus status;
 
@@ -156,5 +182,19 @@ class ReservationRecord {
     seats,
     status ?? this.status,
     token,
+    detailNumber,
   );
+}
+
+class BookingDraftTrip {
+  const BookingDraftTrip({
+    required this.trip,
+    required this.origin,
+    required this.destination,
+    required this.seats,
+  });
+
+  final TripRecord trip;
+  final String origin, destination;
+  final int seats;
 }

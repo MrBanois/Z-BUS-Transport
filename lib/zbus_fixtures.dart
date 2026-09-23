@@ -150,11 +150,11 @@ List<ReservationRecord> createInitialReservations() => [
     stops[2],
     '09:30',
     2,
-    ReservationStatus.confirmed,
-    'QR-BKG-240914-018',
+    ReservationStatus.onWait,
+    'QR-BKG-240914-018-01',
   ),
   ReservationRecord(
-    'BKG-240914-012',
+    'BKG-240914-018',
     'RUN-R02-0930',
     'R02',
     stops[1],
@@ -162,7 +162,8 @@ List<ReservationRecord> createInitialReservations() => [
     '09:30',
     1,
     ReservationStatus.checkedIn,
-    'QR-BKG-240914-012',
+    'QR-BKG-240914-018-02',
+    '02',
   ),
   ReservationRecord(
     'BKG-230914-004',
@@ -172,7 +173,7 @@ List<ReservationRecord> createInitialReservations() => [
     stops[3],
     '15:00',
     1,
-    ReservationStatus.completed,
+    ReservationStatus.noShow,
     'QR-BKG-230914-004',
   ),
   ReservationRecord(

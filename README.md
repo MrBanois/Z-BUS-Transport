@@ -9,12 +9,12 @@ flutter pub get
 flutter run -d chrome
 ```
 
-Use the role selector on the login screen to enter the **operations**, **passenger**, or **driver** journey. Credentials are not needed in this prototype.
+Sign in through the single member form. The current passenger mockup account can open every primary mockup page for review. Use `driver@mut.edu` to preview the driver landing flow. Credentials are not validated in this prototype.
 
 ## Screens and flows
 
-- Operations: overview, employees, editable position-permission matrix, routes, stops, schedules, vehicles, driver assignments, seven report views, account, and interface states.
-- Passenger: stop-to-stop trip search, available departure list, seat selection, reservation confirmation with a visual QR token, and filtered reservation history with cancellation.
+- Operations: overview, departments, positions and editable permissions, users, employees, route/station/schedule CRUD, vehicles, drivers, assignments, seven report views, interface states, and account.
+- All users: registration/sign-in, multi-trip booking, grouped booking history with one QR per trip, individual or whole-booking cancellation, and account.
 - Driver: daily assignments, run detail and passenger manifest, check-in validation states, and trip closeout.
 
 Mock data mirrors the reference routes, Nong Chok stops, 9-seat vans, 20-seat buses, named drivers, and reservation statuses. The search applies a **20-minute** booking cutoff using a fixed **08:40 ICT preview clock**. Seat selection is capped at **four** and at the available capacity of the sample run.
@@ -30,7 +30,7 @@ This is a UI prototype with in-memory state. The displayed QR pattern is illustr
 - `zbus_pages.dart` composes the role-specific mockup screens.
 - `zbus_widgets.dart` and `zbus_theme.dart` provide the shared design system.
 
-Reservation records are immutable. The ledger accounts for seats booked and cancelled during the session, while route search applies the 20-minute cutoff to the passenger's actual boarding stop. These rules are intentionally isolated so a future API-backed repository can replace the in-memory ledger without changing the UI contract.
+Reservation records are immutable. The ledger mirrors the SQL `BOOKING` / `BOOKING_DETAIL` relationship: one checkout creates one booking ID and one independently cancellable detail with a unique QR token for every selected trip. It accounts for seats booked and cancelled during the session, while route search applies the 20-minute cutoff to the passenger's actual boarding stop. These rules are isolated so a future API-backed repository can replace the in-memory ledger without changing the UI contract.
 
 ## Validation
 

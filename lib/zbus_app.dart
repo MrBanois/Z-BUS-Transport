@@ -26,7 +26,7 @@ class ZBusShell extends StatefulWidget {
 
 class _ZBusShellState extends State<ZBusShell>
     with SingleTickerProviderStateMixin {
-  ZRole? role;
+  SessionUser? session;
   ZPage page = ZPage.dashboard;
   TripRecord selectedTrip = trips[2];
   String chosenOrigin = stops[0], chosenDestination = stops[2];
@@ -37,6 +37,7 @@ class _ZBusShellState extends State<ZBusShell>
   bool drawerOpen = false;
   bool tripStarted = false;
   bool scanned = false;
+  final List<BookingDraftTrip> bookingDraft = [];
 
   late final AnimationController pageTransitionController = AnimationController(
     vsync: this,
@@ -66,9 +67,12 @@ class _ZBusShellState extends State<ZBusShell>
     }
   }
 
-  List<ZPage> get nav => switch (role) {
-    ZRole.admin => [
+  List<ZPage> get nav {
+    final ordered = [
       ZPage.dashboard,
+      ZPage.departments,
+      ZPage.positions,
+      ZPage.users,
       ZPage.staff,
       ZPage.permissions,
       ZPage.routes,
@@ -76,14 +80,22 @@ class _ZBusShellState extends State<ZBusShell>
       ZPage.schedules,
       ZPage.vehicles,
       ZPage.assignments,
+      ZPage.drivers,
       ZPage.reports,
-      ZPage.profile,
       ZPage.states,
-    ],
-    ZRole.passenger => [ZPage.search, ZPage.reservations, ZPage.profile],
-    ZRole.driver => [ZPage.driverDay, ZPage.checkIn, ZPage.profile],
-    null => [],
-  };
+      ZPage.search,
+      ZPage.reservations,
+      ZPage.driverDay,
+      ZPage.checkIn,
+      ZPage.profile,
+    ];
+    return ordered
+        .where(
+          (candidate) => session?.allowedPages.contains(candidate) ?? false,
+        )
+        .toList();
+  }
+
   void go(ZPage destination) {
     setState(() {
       page = destination;
@@ -92,16 +104,16 @@ class _ZBusShellState extends State<ZBusShell>
     animatePageChange();
   }
 
-  void login(ZRole newRole) => setState(() {
-    role = newRole;
-    page = switch (newRole) {
+  void login(SessionUser user) => setState(() {
+    session = user;
+    page = switch (user.role) {
       ZRole.admin => ZPage.dashboard,
       ZRole.passenger => ZPage.search,
       ZRole.driver => ZPage.driverDay,
     };
   });
   void logout() => setState(() {
-    role = null;
+    session = null;
     page = ZPage.dashboard;
     drawerOpen = false;
   });
@@ -117,21 +129,39 @@ class _ZBusShellState extends State<ZBusShell>
 
   void book(int seats, String from, String to) {
     setState(() {
-      selectedReservation = reservationLedger.book(
-        trip: selectedTrip,
-        origin: from,
-        destination: to,
-        seats: seats,
+      bookingDraft.add(
+        BookingDraftTrip(
+          trip: selectedTrip,
+          origin: from,
+          destination: to,
+          seats: seats,
+        ),
       );
+      page = ZPage.search;
+    });
+    animatePageChange();
+  }
+
+  void checkout() {
+    setState(() {
+      final booked = reservationLedger.bookGroup(bookingDraft);
+      selectedReservation = booked.first;
+      bookingDraft.clear();
       page = ZPage.confirmation;
     });
     animatePageChange();
   }
 
   void cancel(ReservationRecord reservation) => setState(() {
-    final cancelled = reservationLedger.cancel(reservation.id);
-    if (selectedReservation?.id == cancelled.id) {
+    final cancelled = reservationLedger.cancel(reservation.detailId);
+    if (selectedReservation?.detailId == cancelled.detailId) {
       selectedReservation = cancelled;
+    }
+  });
+  void cancelBooking(String bookingId) => setState(() {
+    final cancelled = reservationLedger.cancelBooking(bookingId);
+    if (selectedReservation?.id == bookingId) {
+      selectedReservation = cancelled.first;
     }
   });
   void selectReservation(ReservationRecord reservation) {
@@ -157,18 +187,19 @@ class _ZBusShellState extends State<ZBusShell>
 
   @override
   Widget build(BuildContext context) {
-    if (role == null) return _Login(onLogin: login);
+    if (session == null) return _Login(onLogin: login);
     final screenWidth = MediaQuery.sizeOf(context).width;
     final desktop = screenWidth >= 1080;
     final mobile = screenWidth < 700;
     final pages = ZPages(
       page: page,
-      role: role!,
+      role: session!.role,
       selectedTrip: selectedTrip,
       initialOrigin: chosenOrigin,
       initialDestination: chosenDestination,
       selectedReservation: selectedReservation,
       reservations: reservationLedger.reservations,
+      bookingDraft: List.unmodifiable(bookingDraft),
       availableSeats: reservationLedger.availableSeats,
       tripStarted: tripStarted,
       scanned: scanned,
@@ -176,6 +207,8 @@ class _ZBusShellState extends State<ZBusShell>
       selectTrip: selectTrip,
       book: book,
       cancel: cancel,
+      cancelBooking: cancelBooking,
+      checkout: checkout,
       selectReservation: selectReservation,
       onStart: startTrip,
       onClose: closeTrip,
@@ -191,7 +224,7 @@ class _ZBusShellState extends State<ZBusShell>
               SizedBox(
                 width: 264,
                 child: _SideNav(
-                  role: role!,
+                  role: session!.role,
                   page: page,
                   nav: nav,
                   go: go,
@@ -202,7 +235,7 @@ class _ZBusShellState extends State<ZBusShell>
               child: Column(
                 children: [
                   _TopBar(
-                    role: role!,
+                    role: session!.role,
                     page: page,
                     desktop: desktop,
                     onMenu: () => setState(() => drawerOpen = !drawerOpen),
@@ -238,7 +271,7 @@ class _ZBusShellState extends State<ZBusShell>
                             child: Container(
                               color: ZColors.bg,
                               child: _SideNav(
-                                role: role!,
+                                role: session!.role,
                                 page: page,
                                 nav: nav,
                                 go: go,
@@ -252,7 +285,7 @@ class _ZBusShellState extends State<ZBusShell>
                   ),
                   if (mobile && !drawerOpen)
                     _BottomNav(
-                      role: role!,
+                      role: session!.role,
                       page: page,
                       go: go,
                       onMenu: () => setState(() => drawerOpen = true),
@@ -377,102 +410,132 @@ class _SideNav extends StatelessWidget {
   final ValueChanged<ZPage> go;
   final VoidCallback logout;
   final bool mobile;
+
+  static const bookingPages = {
+    ZPage.search,
+    ZPage.seats,
+    ZPage.bookingCart,
+    ZPage.confirmation,
+    ZPage.reservations,
+    ZPage.driverDay,
+    ZPage.driverTrip,
+    ZPage.checkIn,
+    ZPage.completion,
+    ZPage.profile,
+  };
+
+  static const statisticPages = {ZPage.reports};
+
   @override
-  Widget build(BuildContext context) => Container(
-    color: ZColors.bg,
-    padding: const EdgeInsets.fromLTRB(24, 25, 24, 24),
-    child: Column(
+  Widget build(BuildContext context) {
+    final booking = nav.where(bookingPages.contains).toList();
+    final management = nav
+        .where(
+          (item) =>
+              !bookingPages.contains(item) && !statisticPages.contains(item),
+        )
+        .toList();
+    final statistics = nav.where(statisticPages.contains).toList();
+    final itemNumbers = {
+      for (final entry in nav.asMap().entries) entry.value: entry.key + 1,
+    };
+
+    Widget section(String title, List<ZPage> items) => Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (!mobile) ...[
-          const _Brand(small: true),
-          const SizedBox(height: 23),
-          const ZRule(),
-          const SizedBox(height: 31),
-        ],
-        ZLabel(switch (role) {
-          ZRole.admin => 'CONTROL ROOM / 01',
-          ZRole.passenger => 'PASSENGER / 02',
-          ZRole.driver => 'DRIVER / 03',
-        }, color: ZColors.accent),
-        const SizedBox(height: 18),
-        Expanded(
-          child: ListView(
+        ZLabel(title, color: ZColors.accent),
+        const SizedBox(height: 8),
+        for (final item in items)
+          Column(
             children: [
-              for (final entry in nav.asMap().entries)
-                Column(
-                  children: [
-                    InkWell(
-                      onTap: () => go(entry.value),
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 14,
-                          horizontal: 9,
-                        ),
-                        color: page == entry.value
-                            ? ZColors.surface2
-                            : Colors.transparent,
-                        child: Row(
-                          children: [
-                            Text(
-                              (entry.key + 1).toString().padLeft(2, '0'),
-                              style: ZTheme.mono(
-                                10,
-                                color: page == entry.value
-                                    ? ZColors.accent
-                                    : ZColors.muted,
-                              ),
-                            ),
-                            const SizedBox(width: 15),
-                            Expanded(
-                              child: Text(
-                                entry.value.label.toUpperCase(),
-                                style: ZTheme.mono(
-                                  11,
-                                  color: page == entry.value
-                                      ? ZColors.ink
-                                      : ZColors.muted,
-                                ),
-                              ),
-                            ),
-                            if (page == entry.value)
-                              const Icon(
-                                Icons.arrow_forward,
-                                size: 14,
-                                color: ZColors.ink,
-                              ),
-                          ],
+              InkWell(
+                onTap: () => go(item),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 14,
+                    horizontal: 9,
+                  ),
+                  color: page == item ? ZColors.surface2 : Colors.transparent,
+                  child: Row(
+                    children: [
+                      Text(
+                        itemNumbers[item]!.toString().padLeft(2, '0'),
+                        style: ZTheme.mono(
+                          10,
+                          color: page == item ? ZColors.accent : ZColors.muted,
                         ),
                       ),
-                    ),
-                    const ZRule(),
-                  ],
+                      const SizedBox(width: 15),
+                      Expanded(
+                        child: Text(
+                          item.label.toUpperCase(),
+                          style: ZTheme.mono(
+                            11,
+                            color: page == item ? ZColors.ink : ZColors.muted,
+                          ),
+                        ),
+                      ),
+                      if (page == item)
+                        const Icon(
+                          Icons.arrow_forward,
+                          size: 14,
+                          color: ZColors.ink,
+                        ),
+                    ],
+                  ),
                 ),
+              ),
+              const ZRule(),
             ],
           ),
-        ),
-        const SizedBox(height: 12),
-        InkWell(
-          onTap: logout,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Row(
+        const SizedBox(height: 25),
+      ],
+    );
+
+    return Container(
+      color: ZColors.bg,
+      padding: const EdgeInsets.fromLTRB(24, 25, 24, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (!mobile) ...[
+            const _Brand(small: true),
+            const SizedBox(height: 23),
+            const ZRule(),
+            const SizedBox(height: 31),
+          ],
+          Expanded(
+            child: ListView(
               children: [
-                const Icon(Icons.logout, size: 16, color: ZColors.muted),
-                const SizedBox(width: 12),
-                Text('SIGN OUT', style: ZTheme.mono(11)),
+                section('01 / BOOKING & ACCOUNT', booking),
+                section('02 / MANAGEMENT', management),
+                section('03 / STATISTICS', statistics),
               ],
             ),
           ),
-        ),
-        const SizedBox(height: 9),
-        const ZRule(),
-        const SizedBox(height: 15),
-        ZLabel('ZBUS / DESIGNED FOR THE JOURNEY'),
-      ],
-    ),
-  );
+          const SizedBox(height: 12),
+          InkWell(
+            onTap: logout,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Row(
+                children: [
+                  const Icon(Icons.logout, size: 16, color: ZColors.muted),
+                  const SizedBox(width: 12),
+                  Text('SIGN OUT', style: ZTheme.mono(11)),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 9),
+          const ZRule(),
+          const SizedBox(height: 15),
+          ZLabel('ZBUS / DESIGNED FOR THE JOURNEY'),
+        ],
+      ),
+    );
+  }
 }
 
 class _BottomNav extends StatelessWidget {
@@ -560,21 +623,66 @@ class _BottomNav extends StatelessWidget {
 
 class _Login extends StatefulWidget {
   const _Login({required this.onLogin});
-  final ValueChanged<ZRole> onLogin;
+  final ValueChanged<SessionUser> onLogin;
   @override
   State<_Login> createState() => _LoginState();
 }
 
 class _LoginState extends State<_Login> {
-  ZRole selected = ZRole.passenger;
   bool remember = true;
+  bool registering = false;
   final email = TextEditingController(text: '');
   final password = TextEditingController();
+  final firstName = TextEditingController();
+  final lastName = TextEditingController();
+  String registrationDepartment = 'D0007 / Computer Science';
+  String registrationPosition = 'P0002 / Student';
   @override
   void dispose() {
     email.dispose();
     password.dispose();
+    firstName.dispose();
+    lastName.dispose();
     super.dispose();
+  }
+
+  SessionUser sessionForEmail() {
+    final value = email.text.trim().toLowerCase();
+    if (value == 'admin@mut.edu') {
+      return SessionUser(
+        name: 'Admin System',
+        email: 'admin@mut.edu',
+        position: 'Admin',
+        role: ZRole.admin,
+        allowedPages: ZPage.values.toSet(),
+      );
+    }
+    if (value == 'driver@mut.edu') {
+      return const SessionUser(
+        name: 'Somchai Jaidee',
+        email: 'driver@mut.edu',
+        position: 'Driver',
+        role: ZRole.driver,
+        allowedPages: {
+          ZPage.search,
+          ZPage.reservations,
+          ZPage.driverDay,
+          ZPage.driverTrip,
+          ZPage.checkIn,
+          ZPage.completion,
+          ZPage.profile,
+        },
+      );
+    }
+    return SessionUser(
+      name: registering && firstName.text.trim().isNotEmpty
+          ? '${firstName.text.trim()} ${lastName.text.trim()}'.trim()
+          : 'John User',
+      email: value.isEmpty ? 'student@mut.edu' : value,
+      position: 'Student',
+      role: ZRole.passenger,
+      allowedPages: ZPage.values.toSet(),
+    );
   }
 
   @override
@@ -647,35 +755,52 @@ class _LoginState extends State<_Login> {
                         const SizedBox(height: 36),
                         const ZRule(),
                         const SizedBox(height: 25),
-                        const ZLabel('VIEW AS'),
-                        const SizedBox(height: 10),
-                        Wrap(
-                          spacing: 7,
-                          runSpacing: 7,
-                          children: [
-                            for (final r in ZRole.values)
-                              ChoiceChip(
-                                label: Text(
-                                  r.name.toUpperCase(),
-                                  style: ZTheme.mono(
-                                    10,
-                                    color: selected == r
-                                        ? ZColors.bg
-                                        : ZColors.ink,
-                                  ),
-                                ),
-                                selected: selected == r,
-                                onSelected: (_) => setState(() => selected = r),
-                                selectedColor: ZColors.ink,
-                                backgroundColor: ZColors.surface,
-                                shape: const RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.zero,
-                                  side: BorderSide(color: ZColors.line),
-                                ),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 23),
+                        if (registering) ...[
+                          ZField(
+                            'First name',
+                            controller: firstName,
+                            hint: 'First name',
+                          ),
+                          const SizedBox(height: 19),
+                          ZField(
+                            'Last name',
+                            controller: lastName,
+                            hint: 'Last name',
+                          ),
+                          const SizedBox(height: 19),
+                          ZSelect(
+                            'Department ID',
+                            value: registrationDepartment,
+                            items: const [
+                              'D0005 / Staff',
+                              'D0006 / Civil Engineering',
+                              'D0007 / Computer Science',
+                              'D0008 / Multimedia',
+                              'D0009 / Architecture',
+                              'D0010 / Business',
+                            ],
+                            onChanged: (value) => setState(() {
+                              registrationDepartment =
+                                  value ?? registrationDepartment;
+                            }),
+                          ),
+                          const SizedBox(height: 19),
+                          ZSelect(
+                            'Position ID',
+                            value: registrationPosition,
+                            items: const [
+                              'P0002 / Student',
+                              'P0003 / Teaching Assistant',
+                              'P0004 / Teacher',
+                              'P0010 / Guest',
+                            ],
+                            onChanged: (value) => setState(() {
+                              registrationPosition =
+                                  value ?? registrationPosition;
+                            }),
+                          ),
+                          const SizedBox(height: 19),
+                        ],
                         ZField(
                           'Institutional email',
                           controller: email,
@@ -711,15 +836,26 @@ class _LoginState extends State<_Login> {
                         SizedBox(
                           width: double.infinity,
                           child: ZButton(
-                            'Enter ZBus',
-                            onPressed: () => widget.onLogin(selected),
+                            registering ? 'Create account' : 'Enter ZBus',
+                            onPressed: () => widget.onLogin(sessionForEmail()),
                             icon: Icons.arrow_forward,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ZButton(
+                            registering ? 'Back to sign in' : 'Register',
+                            secondary: true,
+                            onPressed: () => setState(() {
+                              registering = !registering;
+                            }),
                           ),
                         ),
                         const SizedBox(height: 18),
                         const ZNotice(
-                          'Mockup access',
-                          'Choose a role to explore its screens. No credentials are required for this design prototype.',
+                          'Permission-based access',
+                          'Use admin@mut.edu or driver@mut.edu to preview those positions. Other emails use Student access. No password is required in this prototype.',
                           color: ZColors.success,
                         ),
                       ],
