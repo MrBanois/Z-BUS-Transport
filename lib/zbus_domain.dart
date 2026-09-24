@@ -14,6 +14,11 @@ class BookingRules {
   static const maxSeatsPerReservation = 4;
   static const bookingCutoffMinutes = 20;
 
+  static String formatClockMinutes(int minutes) {
+    final clock = minutes % (24 * 60);
+    return '${(clock ~/ 60).toString().padLeft(2, '0')}:${(clock % 60).toString().padLeft(2, '0')}';
+  }
+
   static int parseClockMinutes(String value) {
     final parts = value.split(':');
     if (parts.length != 2) {
@@ -21,7 +26,12 @@ class BookingRules {
     }
     final hour = int.tryParse(parts[0]);
     final minute = int.tryParse(parts[1]);
-    if (hour == null || minute == null || hour > 23 || minute > 59) {
+    if (hour == null ||
+        minute == null ||
+        hour < 0 ||
+        minute < 0 ||
+        hour > 23 ||
+        minute > 59) {
       throw FormatException('Expected a valid 24-hour time.', value);
     }
     return hour * 60 + minute;
@@ -153,6 +163,26 @@ class ReservationLedger {
     return List.unmodifiable(reservations);
   }
 
+  final Map<String, int> boardedPassengers = {};
+
+  ReservationRecord checkIn(String detailId, int passengers) {
+    final index = _reservations.indexWhere((r) => r.detailId == detailId);
+    if (index < 0) {
+      throw const BookingValidationException('Booking detail not found.');
+    }
+    final booking = _reservations[index];
+    if (booking.status != ReservationStatus.onWait) {
+      throw const BookingValidationException(
+        'Only waiting bookings can check in.',
+      );
+    }
+    CheckInValidator.validatePassengerCount(passengers, booking.seats);
+    boardedPassengers[detailId] = passengers;
+    return _reservations[index] = booking.copyWith(
+      status: ReservationStatus.checkedIn,
+    );
+  }
+
   ReservationRecord cancel(String reservationId) {
     final index = _reservations.indexWhere(
       (reservation) =>
@@ -190,10 +220,25 @@ class ReservationLedger {
   }
 }
 
-enum CheckInResult { accepted, alreadyCheckedIn, wrongRun, wrongStop, notFound }
+enum CheckInResult {
+  accepted,
+  alreadyCheckedIn,
+  wrongRun,
+  wrongStop,
+  notFound,
+  unavailable,
+}
 
 class CheckInValidator {
   const CheckInValidator._();
+
+  static void validatePassengerCount(int passengers, int seats) {
+    if (passengers < 1 || passengers > seats) {
+      throw BookingValidationException(
+        'Enter between 1 and $seats boarded passengers. Use no-show when nobody boards.',
+      );
+    }
+  }
 
   static CheckInResult validate({
     required String token,
@@ -212,7 +257,12 @@ class CheckInValidator {
     if (reservation == null) return CheckInResult.notFound;
     if (reservation.tripId != activeTripId) return CheckInResult.wrongRun;
     if (reservation.from != activeStop) return CheckInResult.wrongStop;
-    if (scannedTokens.contains(reservation.token)) {
+    if (reservation.status == ReservationStatus.cancelled ||
+        reservation.status == ReservationStatus.noShow) {
+      return CheckInResult.unavailable;
+    }
+    if (reservation.status == ReservationStatus.checkedIn ||
+        scannedTokens.contains(reservation.token)) {
       return CheckInResult.alreadyCheckedIn;
     }
     return CheckInResult.accepted;

@@ -80,6 +80,7 @@ class _ZBusShellState extends State<ZBusShell>
       ZPage.departments,
       ZPage.positions,
       ZPage.users,
+      ZPage.employees,
       ZPage.vehicles,
       // Route
       ZPage.stops,
@@ -193,6 +194,7 @@ class _ZBusShellState extends State<ZBusShell>
     final pages = ZPages(
       page: page,
       role: session!.role,
+      sessionUser: session,
       selectedTrip: selectedTrip,
       initialOrigin: chosenOrigin,
       initialDestination: chosenDestination,
@@ -211,6 +213,9 @@ class _ZBusShellState extends State<ZBusShell>
       selectReservation: selectReservation,
       onStart: startTrip,
       onClose: closeTrip,
+      onBoard: (booking, count) => setState(() {
+        reservationLedger.checkIn(booking.detailId, count);
+      }),
       onScan: () => setState(() {
         scanned = true;
       }),
@@ -430,6 +435,7 @@ class _SideNav extends StatelessWidget {
     ZPage.departments,
     ZPage.positions,
     ZPage.users,
+    ZPage.employees,
     ZPage.vehicles,
   };
 
@@ -661,21 +667,27 @@ class _LoginState extends State<_Login> {
 
   SessionUser sessionForEmail() {
     final value = email.text.trim().toLowerCase();
-    if (value == 'admin@mut.edu') {
+    if (!registering && value == 'admin@mut.edu') {
       return SessionUser(
         name: 'Admin System',
         email: 'admin@mut.edu',
         position: 'Admin',
+        departmentId: 'ED002',
+        positionId: 'EP003',
         role: ZRole.admin,
+        isEmployee: true,
         allowedPages: ZPage.values.toSet(),
       );
     }
-    if (value == 'driver@mut.edu') {
+    if (!registering && value == 'driver@mut.edu') {
       return const SessionUser(
         name: 'Somchai Jaidee',
         email: 'driver@mut.edu',
         position: 'Driver',
+        departmentId: 'ED001',
+        positionId: 'EP001',
         role: ZRole.driver,
+        isEmployee: true,
         allowedPages: {
           ZPage.search,
           ZPage.reservations,
@@ -693,6 +705,8 @@ class _LoginState extends State<_Login> {
           : 'John User',
       email: value.isEmpty ? 'student@mut.edu' : value,
       position: 'Student',
+      departmentId: registrationDepartment.split(' / ').first,
+      positionId: registrationPosition.split(' / ').first,
       role: ZRole.passenger,
       allowedPages: ZPage.values.toSet(),
     );

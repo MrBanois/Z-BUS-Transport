@@ -11,6 +11,8 @@ import 'zbus_widgets.dart';
 class ZPages extends StatefulWidget {
   const ZPages({
     super.key,
+    this.sessionUser,
+    this.onBoard,
     required this.page,
     required this.role,
     required this.selectedTrip,
@@ -33,6 +35,8 @@ class ZPages extends StatefulWidget {
     required this.onClose,
     required this.onScan,
   });
+  final SessionUser? sessionUser;
+  final void Function(ReservationRecord, int)? onBoard;
   final ZPage page;
   final ZRole role;
   final TripRecord selectedTrip;
@@ -55,7 +59,16 @@ class ZPages extends StatefulWidget {
 
 class _ZPagesState extends State<ZPages> {
   final managedRoutes = List<RouteRecord>.of(routes);
-  final managedStations = List<String>.of(stops);
+  final stationRecords = <Map<String, String>>[
+    for (var i = 0; i < stops.length; i++)
+      {
+        'ID': 'S${(i + 1).toString().padLeft(4, '0')}',
+        'Name': stops[i],
+        'IS_ACTIVE': 'T',
+      },
+  ];
+  List<String> get managedStations =>
+      stationRecords.map((s) => s['Name']!).toList();
   final managedSchedules = List<TripRecord>.of(trips);
   final manifestStatus = <String, String>{
     'John Passenger': 'Confirmed',
@@ -69,6 +82,9 @@ class _ZPagesState extends State<ZPages> {
   int seatCount = 1;
   bool searched = false, showError = false;
   final scanController = TextEditingController();
+  final passengerCountController = TextEditingController();
+  final boardingCounts = <String, int>{};
+  String? boardingError;
   final profileName = TextEditingController(text: 'John');
   final profileLastName = TextEditingController(text: 'User');
   final profileEmail = TextEditingController(text: 'johnuser@zbus.co.th');
@@ -99,8 +115,40 @@ class _ZPagesState extends State<ZPages> {
   String accountDepartment = 'PD001 / Technology';
   String accountPosition = 'PP001 / Student';
   @override
+  void initState() {
+    super.initState();
+    for (final name in positionIds.keys) {
+      permissions.putIfAbsent(name, () => <String>{});
+    }
+    final user = widget.sessionUser;
+    if (user != null &&
+        !user.isEmployee &&
+        !users.any((u) => u['Email'] == user.email)) {
+      final parts = user.name.split(' ');
+      users.add({
+        'ID': 'U000000010',
+        'First name': parts.first,
+        'Last name': parts.skip(1).join(' '),
+        'Email': user.email,
+        'Department': user.departmentId,
+        'Position': user.positionId,
+        'ISEMP': 'F',
+        'Salary': '',
+      });
+      profileName.text = parts.first;
+      profileLastName.text = parts.skip(1).join(' ');
+      profileEmail.text = user.email;
+      accountDepartment =
+          '${user.departmentId} / ${departments.where((d) => d['ID'] == user.departmentId).map((d) => d['Name']).firstOrNull ?? 'Department'}';
+      accountPosition =
+          '${user.positionId} / ${positionIds.entries.where((e) => e.value == user.positionId).map((e) => e.key).firstOrNull ?? user.position}';
+    }
+  }
+
+  @override
   void dispose() {
     scanController.dispose();
+    passengerCountController.dispose();
     profileName.dispose();
     profileLastName.dispose();
     profileEmail.dispose();
@@ -188,6 +236,7 @@ class _ZPagesState extends State<ZPages> {
     ZPage.departments => departmentsPage(),
     ZPage.positions => permissionsPage(),
     ZPage.users => usersPage(),
+    ZPage.employees => usersPage(employeesOnly: true),
     ZPage.routes => routesPage(),
     ZPage.stops => stopsPage(),
     ZPage.schedules => schedulesPage(),
@@ -205,136 +254,439 @@ class _ZPagesState extends State<ZPages> {
     ZPage.profile => profilePage(),
   };
 
-  Widget departmentsPage() => _masterDirectory(
-    index: '02',
-    kicker: 'MASTER FILE / DEPARTMENTS',
-    title: 'TEAMS BEHIND\nTHE JOURNEY.',
-    description: 'Create and maintain the departments referenced by users and employees.',
-    action: 'Add department',
-    headers: const ['Department', 'ID', 'Account type'],
-    showStatus: false,
-    records: const [
-      ['Transport', 'ED001', 'Employee', ''],
-      ['Management', 'ED002', 'Employee', ''],
-      ['Technology', 'PD001', 'Passenger', ''],
-      ['Computer Science', 'PD002', 'Passenger', ''],
-    ],
-  );
+  final departments = <Map<String, String>>[
+    {'ID': 'ED001', 'Name': 'Transport'},
+    {'ID': 'ED002', 'Name': 'Management'},
+    {'ID': 'PD001', 'Name': 'Technology'},
+    {'ID': 'PD002', 'Name': 'Computer Science'},
+    {'ID': 'PD003', 'Name': 'Civil Engineering'},
+    {'ID': 'PD004', 'Name': 'Multimedia'},
+    {'ID': 'PD005', 'Name': 'Architecture'},
+    {'ID': 'PD006', 'Name': 'Business'},
+  ];
+  final users = <Map<String, String>>[
+    {
+      'ID': 'U000000001',
+      'First name': 'John',
+      'Last name': 'Driver',
+      'Email': 'driver@mut.edu',
+      'Department': 'ED001',
+      'Position': 'EP001',
+      'ISEMP': 'T',
+      'Salary': '25000',
+    },
+    {
+      'ID': 'U000000009',
+      'First name': 'Admin',
+      'Last name': 'System',
+      'Email': 'admin@mut.edu',
+      'Department': 'ED002',
+      'Position': 'EP003',
+      'ISEMP': 'T',
+      'Salary': '35000',
+    },
+    {
+      'ID': 'U000000004',
+      'First name': 'Technology',
+      'Last name': 'Student',
+      'Email': 'student@mut.edu',
+      'Department': 'PD001',
+      'Position': 'PP001',
+      'ISEMP': 'F',
+      'Salary': '',
+    },
+  ];
+  final vehicleRecords = <Map<String, String>>[
+    {
+      'ID': 'V0001',
+      'Plate': 'SY 2591',
+      'Seats': '9',
+      'Type': 'Van',
+      'IS_ACTIVE': 'T',
+    },
+    {
+      'ID': 'V0002',
+      'Plate': 'SY 2599',
+      'Seats': '9',
+      'Type': 'Van',
+      'IS_ACTIVE': 'T',
+    },
+    {
+      'ID': 'V0003',
+      'Plate': 'BK 1130',
+      'Seats': '20',
+      'Type': 'Bus',
+      'IS_ACTIVE': 'T',
+    },
+    {
+      'ID': 'V0004',
+      'Plate': 'NN 5566',
+      'Seats': '15',
+      'Type': 'Minibus',
+      'IS_ACTIVE': 'T',
+    },
+  ];
+  final positionIds = <String, String>{
+    'Operations manager': 'EP002',
+    'Dispatcher': 'EP004',
+    'Driver': 'EP001',
+    'Student': 'PP001',
+    'Admin': 'EP003',
+    'Teaching Assistant': 'PP002',
+    'Teacher': 'PP003',
+    'Guest': 'PP004',
+  };
 
-  Widget usersPage() => Column(
+  String generatedId(Iterable<String> ids, String prefix, int digits) {
+    final numbers = ids
+        .where((id) => id.startsWith(prefix))
+        .map((id) => int.tryParse(id.substring(prefix.length)) ?? 0);
+    final next = numbers.fold<int>(0, math.max) + 1;
+    return '$prefix${next.toString().padLeft(digits, '0')}';
+  }
+
+  String departmentName(String id) =>
+      departments
+          .where((d) => d['ID'] == id)
+          .map((d) => d['Name']!)
+          .firstOrNull ??
+      'Unknown department';
+  String positionName(String id) =>
+      positionIds.entries
+          .where((p) => p.value == id)
+          .map((p) => p.key)
+          .firstOrNull ??
+      'Unknown position';
+
+  Future<void> directoryDialog({
+    required String title,
+    required List<Map<String, String>> records,
+    required Map<String, String> defaults,
+    Map<String, String>? existing,
+    Map<String, List<String>> choices = const {},
+    Map<String, Map<String, String>> choiceLabels = const {},
+    String? accountIdSuffix,
+    Set<String> locked = const {},
+    String? Function(Map<String, String>)? validate,
+    bool Function()? canDelete,
+    void Function(Map<String, String>)? afterSave,
+  }) async {
+    final values = Map<String, String>.of(existing ?? defaults);
+    final controllers = {
+      for (final key in values.keys)
+        key: TextEditingController(text: values[key]),
+    };
+    var employeeType = values['ID']!.startsWith('E');
+    final originalId = existing?['ID'];
+    String? error;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, update) => AlertDialog(
+          title: Text('${existing == null ? 'ADD' : 'EDIT'} $title'),
+          content: SizedBox(
+            width: 440,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (accountIdSuffix != null)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Account type: ${employeeType ? 'Employee' : 'Passenger'}',
+                          ),
+                        ),
+                        Switch(
+                          value: employeeType,
+                          onChanged: (value) => update(() {
+                            if (existing != null &&
+                                canDelete != null &&
+                                !canDelete()) {
+                              error = 'This record is assigned to users. Reassign those users before changing its type.';
+                              return;
+                            }
+                            employeeType = value;
+                            final prefix =
+                                '${value ? 'E' : 'P'}$accountIdSuffix';
+                            final id =
+                                originalId != null &&
+                                    originalId.startsWith(prefix)
+                                ? originalId
+                                : generatedId(
+                                    records.map((r) => r['ID']!),
+                                    prefix,
+                                    3,
+                                  );
+                            values['ID'] = id;
+                            controllers['ID']!.text = id;
+                            error = null;
+                          }),
+                        ),
+                      ],
+                    ),
+                  for (final key in values.keys)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: choices.containsKey(key)
+                          ? ZSelect(
+                              key,
+                              value: values[key]!,
+                              itemLabels: choiceLabels[key] ?? const {},
+                              items: {
+                                ...choices[key]!,
+                                values[key]!,
+                              }.where((v) => v.isNotEmpty).toList(),
+                              onChanged: locked.contains(key)
+                                  ? null
+                                  : (v) => update(() => values[key] = v!),
+                            )
+                          : TextField(
+                              controller: controllers[key],
+                              readOnly: locked.contains(key) || key == 'ID',
+                              decoration: InputDecoration(labelText: key),
+                            ),
+                    ),
+                  if (error != null)
+                    Text(error!, style: const TextStyle(color: ZColors.accent)),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            if (existing != null)
+              TextButton(
+                onPressed: () {
+                  if (canDelete != null && !canDelete()) {
+                    update(
+                      () => error = 'This record is still referenced. Reassign those records first.',
+                    );
+                    return;
+                  }
+                  setState(() => records.remove(existing));
+                  Navigator.pop(ctx);
+                },
+                child: const Text('DELETE'),
+              ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('CANCEL'),
+            ),
+            TextButton(
+              onPressed: () {
+                for (final key in values.keys) {
+                  if (!choices.containsKey(key)) {
+                    values[key] = controllers[key]!.text.trim();
+                  }
+                }
+                final invalid = validate?.call(values);
+                if (values['ID']!.isEmpty ||
+                    records.any(
+                      (r) => !identical(r, existing) && r['ID'] == values['ID'],
+                    )) {
+                  update(() => error = 'Enter a unique ID.');
+                  return;
+                }
+                if (invalid != null) {
+                  update(() => error = invalid);
+                  return;
+                }
+                setState(() {
+                  if (existing == null) {
+                    records.add(Map.of(values));
+                  } else {
+                    existing.addAll(values);
+                  }
+                  afterSave?.call(values);
+                });
+                Navigator.pop(ctx);
+              },
+              child: const Text('SAVE'),
+            ),
+          ],
+        ),
+      ),
+    );
+    // Dialog exit animation still uses its controllers until it completes.
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    for (final controller in controllers.values) {
+      controller.dispose();
+    }
+  }
+
+  Widget departmentsPage() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       header(
-        '04',
-        'MASTER FILE / USERS',
-        'ONE USER TABLE.\nEVERY PERSON.',
-        'Passengers and employees use the same user table. Department and position IDs identify which type of account each user has.',
-        action: ZButton(
-          'Add user',
-          onPressed: () => message('User form opened in this prototype.'),
-          icon: Icons.add,
-        ),
+        '02',
+        'MASTER FILE / DEPARTMENTS',
+        'TEAMS BEHIND\nTHE JOURNEY.',
+        'Passenger IDs begin PD; employee IDs begin ED.',
+        action: ZButton('Add department', onPressed: () => departmentDialog()),
       ),
       ZTable(
-        headers: const ['User', 'Department', 'Position', 'Status'],
+        headers: const ['Department', 'ID'],
         rows: [
-          ZRecord(
-            title: 'Admin System',
-            subtitle: 'U000000009',
-            fields: const {
-              'Department': 'ED002 / Management',
-              'Position': 'EP003 / Admin',
-            },
-            status: 'Active',
-            onTap: () => message('Admin System opened for editing.'),
-          ),
-          ZRecord(
-            title: 'Somchai Jaidee',
-            subtitle: 'U000000001',
-            fields: const {
-              'Department': 'ED001 / Transport',
-              'Position': 'EP001 / Driver',
-            },
-            status: 'Active',
-            onTap: () => message('Somchai Jaidee opened for editing.'),
-          ),
-          ZRecord(
-            title: 'Technology Student',
-            subtitle: 'U000000004',
-            fields: const {
-              'Department': 'PD001 / Technology',
-              'Position': 'PP001 / Student',
-            },
-            status: 'Active',
-            onTap: () => message('Technology Student opened for editing.'),
-          ),
-          ZRecord(
-            title: 'Computer Science Student',
-            subtitle: 'U000000005',
-            fields: const {
-              'Department': 'PD002 / Computer Science',
-              'Position': 'PP001 / Student',
-            },
-            status: 'Active',
-            onTap: () =>
-                message('Computer Science Student opened for editing.'),
-          ),
+          for (final record in departments)
+            ZRecord(
+              title: record['Name']!,
+              subtitle: '',
+              fields: {'ID': record['ID']!},
+              onTap: () => departmentDialog(record),
+            ),
         ],
       ),
     ],
   );
+  void departmentDialog([Map<String, String>? record]) => directoryDialog(
+    title: 'DEPARTMENT',
+    records: departments,
+    defaults: {
+      'ID': generatedId(departments.map((r) => r['ID']!), 'PD', 3),
+      'Name': '',
+    },
+    accountIdSuffix: 'D',
+    existing: record,
+    validate: (v) =>
+        !RegExp(r'^[EP]D[0-9]{3}$').hasMatch(v['ID']!) || v['Name']!.isEmpty
+        ? 'Enter a department name.'
+        : null,
+    canDelete: () => !users.any((u) => u['Department'] == record?['ID']),
+  );
 
-  Widget _masterDirectory({
-    required String index,
-    required String kicker,
-    required String title,
-    required String description,
-    required String action,
-    required List<String> headers,
-    required List<List<String>> records,
-    bool showStatus = true,
-  }) => Column(
+  Widget usersPage({bool employeesOnly = false}) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       header(
-        index,
-        kicker,
-        title,
-        description,
+        '04',
+        employeesOnly ? 'MASTER FILE / EMPLOYEES' : 'MASTER FILE / USERS',
+        employeesOnly
+            ? 'PEOPLE BEHIND\nTHE SERVICE.'
+            : 'ONE USER TABLE.\nEVERY PERSON.',
+        employeesOnly ? 'Employee accounts have ISEMP = T and a salary.' : 'All passengers and employees, including department and position.',
         action: ZButton(
-          action,
-          onPressed: () => message('$action form opened in this prototype.'),
-          icon: Icons.add,
+          employeesOnly ? 'Add employee' : 'Add user',
+          onPressed: () => userDialog(employee: employeesOnly),
         ),
       ),
       ZTable(
-        headers: headers,
-        rows: records
-            .map(
-              (record) => ZRecord(
-                title: record[0],
-                subtitle: record[1],
-                fields: {headers[2]: record[2]},
-                status: showStatus ? record[3] : null,
-                onTap: () => message('${record[0]} opened for editing.'),
-              ),
-            )
-            .toList(),
+        headers: [
+          'User',
+          'Department',
+          'Position',
+          'ISEMP',
+          if (employeesOnly) 'Salary',
+        ],
+        rows: [
+          for (final u in users.where(
+            (u) => !employeesOnly || u['ISEMP'] == 'T',
+          ))
+            ZRecord(
+              title: '${u['First name']} ${u['Last name']}',
+              subtitle: u['ID']!,
+              fields: {
+                'Department': departmentName(u['Department']!),
+                'Position': positionName(u['Position']!),
+                'ISEMP': u['ISEMP']!,
+                if (employeesOnly) 'Salary': u['Salary']!,
+              },
+              onTap: () => userDialog(employee: u['ISEMP'] == 'T', record: u),
+            ),
+        ],
       ),
     ],
   );
+  void userDialog({required bool employee, Map<String, String>? record}) =>
+      directoryDialog(
+        title: employee ? 'EMPLOYEE' : 'USER',
+        records: users,
+        defaults: {
+          'ID': generatedId(users.map((r) => r['ID']!), 'U', 9),
+          'First name': '',
+          'Last name': '',
+          'Email': '',
+          'Department': employee ? 'ED001' : 'PD001',
+          'Position': employee ? 'EP001' : 'PP001',
+          'ISEMP': employee ? 'T' : 'F',
+          'Salary': employee ? '0' : '',
+        },
+        existing: record,
+        locked: {'ISEMP', if (!employee) 'Salary'},
+        choiceLabels: {
+          'Department': {for (final d in departments) d['ID']!: d['Name']!},
+          'Position': {for (final p in positionIds.entries) p.value: p.key},
+        },
+        choices: {
+          'Department': departments
+              .where((d) => d['ID']!.startsWith(employee ? 'ED' : 'PD'))
+              .map((d) => d['ID']!)
+              .toList(),
+          'Position': positionIds.values
+              .where((id) => id.startsWith(employee ? 'EP' : 'PP'))
+              .toList(),
+        },
+        validate: (v) {
+          if (v['First name']!.isEmpty ||
+              v['Last name']!.isEmpty ||
+              !v['Email']!.contains('@')) {
+            return 'Enter a first name, last name and valid email.';
+          }
+          final salary = double.tryParse(v['Salary']!);
+          if (employee && (salary == null || !salary.isFinite || salary < 0)) {
+            return 'Enter a non-negative salary.';
+          }
+          return null;
+        },
+      );
+
+  Future<void> positionDialog([String? name]) async {
+    final record = name == null
+        ? null
+        : {'ID': positionIds[name]!, 'Name': name};
+    final records = [
+      for (final entry in positionIds.entries)
+        if (entry.key != name) {'ID': entry.value, 'Name': entry.key},
+      ?record,
+    ];
+    await directoryDialog(
+      title: 'POSITION',
+      records: records,
+      defaults: {'ID': generatedId(positionIds.values, 'PP', 3), 'Name': ''},
+      accountIdSuffix: 'P',
+      existing: record,
+      validate: (v) =>
+          !RegExp(r'^[EP]P[0-9]{3}$').hasMatch(v['ID']!) ||
+              v['Name']!.isEmpty ||
+              (v['Name'] != name && positionIds.containsKey(v['Name']))
+          ? 'Enter a unique position name.'
+          : null,
+      canDelete: () =>
+          permissions.length > 1 &&
+          !users.any((u) => u['Position'] == record?['ID']),
+      afterSave: (v) {
+        final granted = permissions.remove(name) ?? <String>{};
+        positionIds.remove(name);
+        positionIds[v['Name']!] = v['ID']!;
+        permissions[v['Name']!] = granted;
+        permissionRole = v['Name']!;
+      },
+    );
+    if (record != null && !records.contains(record)) {
+      setState(() {
+        positionIds.remove(name);
+        permissions.remove(name);
+        permissionRole = permissions.keys.first;
+      });
+    }
+  }
 
   Widget permissionsPage() {
-    const positionIds = {
-      'Operations manager': 'EP002',
-      'Dispatcher': 'EP004',
-      'Driver': 'EP001',
-      'Student': 'PP001',
-    };
     final modules = [
       'Manage departments',
       'Manage positions',
       'Manage users',
+      'Manage employees',
       'Manage routes',
       'Manage stations',
       'Manage schedules',
@@ -358,8 +710,7 @@ class _ZPagesState extends State<ZPages> {
           'Define which screens each position can reach. The matrix is editable at any time; privileges are never hard-coded to a fixed admin role.',
           action: ZButton(
             'Add position',
-            onPressed: () =>
-                message('New position draft created in this prototype.'),
+            onPressed: () => positionDialog(),
             icon: Icons.add,
           ),
         ),
@@ -391,7 +742,7 @@ class _ZPagesState extends State<ZPages> {
                         ),
                         gap(17),
                         Text(
-                          '${p == 'Student' ? 'Passenger' : 'Employee'} / ${permissions[p]!.length} screens enabled',
+                          '${positionIds[p]!.startsWith('PP') ? 'Passenger' : 'Employee'} / ${permissions[p]!.length} screens enabled',
                           style: const TextStyle(color: ZColors.muted),
                         ),
                       ],
@@ -435,6 +786,11 @@ class _ZPagesState extends State<ZPages> {
           ),
         ),
         gap(20),
+        ZButton(
+          'Edit position',
+          onPressed: () => positionDialog(permissionRole),
+        ),
+        gap(12),
         ZButton(
           'Save permissions',
           onPressed: () =>
@@ -518,9 +874,31 @@ class _ZPagesState extends State<ZPages> {
         ),
     ],
   );
+  String nextRouteId() {
+    var number = 1;
+    while (managedRoutes.any(
+      (r) => r.id == 'R${number.toString().padLeft(2, '0')}',
+    )) {
+      number++;
+    }
+    return 'R${number.toString().padLeft(2, '0')}';
+  }
+
   Future<void> _routeDialog([RouteRecord? existing]) async {
     final name = TextEditingController(text: existing?.name ?? '');
     final selectedStations = List<String>.of(existing?.stops ?? const []);
+    if (managedStations.isEmpty) {
+      message('Add stations before creating a route.');
+      name.dispose();
+      return;
+    }
+    final durations = <TextEditingController>[
+      for (var i = 0; i < selectedStations.length; i++)
+        TextEditingController(
+          text: i == 0 ? '' : '${existing!.segmentMinutes[i - 1]}',
+        ),
+    ];
+    final allDurationControllers = List<TextEditingController>.of(durations);
     var stationToAdd = managedStations.first;
     await showDialog<void>(
       context: context,
@@ -592,13 +970,25 @@ class _ZPagesState extends State<ZPages> {
                               ),
                               IconButton(
                                 tooltip: 'Remove station',
-                                onPressed: () => update(
-                                  () => selectedStations.removeAt(index),
-                                ),
+                                onPressed: () => update(() {
+                                  selectedStations.removeAt(index);
+                                  durations.removeAt(index);
+                                }),
                                 icon: const Icon(Icons.close, size: 17),
                               ),
                             ],
                           ),
+                          if (index == 0)
+                            const Text(
+                              'Time from previous station: null (first station)',
+                            )
+                          else
+                            ZField(
+                              'Minutes from previous station',
+                              controller: durations[index],
+                              hint: 'e.g. 5',
+                              onChanged: (_) => update(() {}),
+                            ),
                           const ZRule(),
                         ],
                       ),
@@ -620,15 +1010,21 @@ class _ZPagesState extends State<ZPages> {
                       ZButton(
                         'Add',
                         compact: true,
-                        onPressed: () =>
-                            update(() => selectedStations.add(stationToAdd)),
+                        onPressed: () => update(() {
+                          selectedStations.add(stationToAdd);
+                          final duration = TextEditingController(
+                            text: selectedStations.length == 1 ? '' : '5',
+                          );
+                          durations.add(duration);
+                          allDurationControllers.add(duration);
+                        }),
                         icon: Icons.add,
                       ),
                     ],
                   ),
                   gap(12),
-                  const Text(
-                    'Stations may appear more than once for return loops. Each segment uses a five-minute mock travel time.',
+                  Text(
+                    'Total duration: ${durations.skip(1).fold<int>(0, (sum, c) => sum + (int.tryParse(c.text) ?? 0))} min. Each value is travel time from the previous station.',
                     style: TextStyle(color: ZColors.muted, fontSize: 12),
                   ),
                 ],
@@ -664,13 +1060,26 @@ class _ZPagesState extends State<ZPages> {
                   message('Enter a name and add at least two stations.');
                   return;
                 }
+                if (durations
+                    .skip(1)
+                    .any(
+                      (c) =>
+                          int.tryParse(c.text) == null || int.parse(c.text) < 0,
+                    )) {
+                  message(
+                    'Enter a non-negative whole number of minutes for each segment.',
+                  );
+                  return;
+                }
                 setState(() {
                   final record = RouteRecord(
-                    existing?.id ??
-                        'R${(managedRoutes.length + 1).toString().padLeft(2, '0')}',
+                    existing?.id ?? nextRouteId(),
                     name.text.trim(),
                     List.unmodifiable(selectedStations),
-                    List.filled(selectedStations.length - 1, 5),
+                    [
+                      for (final duration in durations.skip(1))
+                        int.parse(duration.text),
+                    ],
                     existing?.runs ?? 0,
                   );
                   if (existing == null) {
@@ -687,7 +1096,11 @@ class _ZPagesState extends State<ZPages> {
         ),
       ),
     );
+    await Future<void>.delayed(const Duration(milliseconds: 300));
     name.dispose();
+    for (final c in allDurationControllers) {
+      c.dispose();
+    }
   }
 
   Widget stopsPage() => Column(
@@ -697,110 +1110,64 @@ class _ZPagesState extends State<ZPages> {
         '05',
         'MASTER FILE / STATIONS',
         'PLACES TO\nGET THERE.',
-        'Every pick-up and drop-off point in the network. Reuse stops across routes and keep inactive stops out of new schedules.',
-        action: ZButton(
-          'Add stop',
-          onPressed: () => _stationDialog(),
-          icon: Icons.add,
-        ),
+        'Manage station ID, name and active flag.',
+        action: ZButton('Add station', onPressed: () => stationDialog()),
       ),
-      columns(const [
-        ZStat('Network stops', '07', 'Across three active lines'),
-        ZStat('Interchanges', '03', 'Served by multiple routes'),
-        ZStat('Active', '07', 'Ready for scheduling'),
-      ]),
-      gap(35),
-      ZSectionTitle('01 / DIRECTORY', 'All stops'),
       ZTable(
-        headers: const ['Stop', 'Routes', 'Type', 'Status'],
-        rows: managedStations
-            .asMap()
-            .entries
-            .map(
-              (e) => ZRecord(
-                title: e.value,
-                subtitle: 'ST-${(e.key + 1).toString().padLeft(3, '0')}',
-                fields: {
-                  'Routes': managedRoutes
-                      .where((r) => r.stops.contains(e.value))
-                      .map((r) => r.id)
-                      .join(' / '),
-                  'Type': e.key == 0
-                      ? 'Campus terminal'
-                      : e.key == 1
-                      ? 'Interchange'
-                      : 'Street stop',
-                },
-                status: 'Active',
-                onTap: () => _stationDialog(index: e.key),
-              ),
-            )
-            .toList(),
+        headers: const ['NAME', 'ID', 'IS_ACTIVE'],
+        rows: [
+          for (final station in stationRecords)
+            ZRecord(
+              title: station['Name']!,
+              subtitle: '',
+              fields: {
+                'ID': station['ID']!,
+                'IS_ACTIVE': station['IS_ACTIVE']!,
+              },
+              onTap: () => stationDialog(station),
+            ),
+        ],
       ),
     ],
   );
-
-  Future<void> _stationDialog({int? index}) async {
-    final existing = index == null ? null : managedStations[index];
-    final name = TextEditingController(text: existing);
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(
-          existing == null ? 'ADD STATION' : 'EDIT STATION',
-          style: ZTheme.display(35),
-        ),
-        content: SizedBox(
-          width: 430,
-          child: ZField(
-            'Station name',
-            controller: name,
-            hint: 'Pick-up or drop-off point',
-          ),
-        ),
-        actions: [
-          if (index != null)
-            ZButton(
-              'Delete',
-              secondary: true,
-              onPressed: () {
-                if (managedRoutes.any(
-                  (route) => route.stops.contains(existing),
-                )) {
-                  message(
-                    'Remove this station from its routes before deleting it.',
-                  );
-                  return;
-                }
-                setState(() => managedStations.removeAt(index));
-                Navigator.pop(ctx);
-                message('$existing deleted from the mock directory.');
-              },
-            ),
-          ZButton(
-            'Cancel',
-            secondary: true,
-            onPressed: () => Navigator.pop(ctx),
-          ),
-          ZButton(
-            'Save',
-            onPressed: () {
-              if (name.text.trim().isEmpty) return;
-              setState(() {
-                if (index == null) {
-                  managedStations.add(name.text.trim());
-                } else {
-                  managedStations[index] = name.text.trim();
-                }
-              });
-              Navigator.pop(ctx);
-              message('Station saved.');
-            },
-          ),
-        ],
-      ),
+  void stationDialog([Map<String, String>? record]) {
+    final oldName = record?['Name'];
+    directoryDialog(
+      title: 'STATION',
+      records: stationRecords,
+      defaults: {
+        'ID': generatedId(stationRecords.map((r) => r['ID']!), 'S', 4),
+        'Name': '',
+        'IS_ACTIVE': 'T',
+      },
+      existing: record,
+      choices: const {
+        'IS_ACTIVE': ['T', 'F'],
+      },
+      validate: (v) =>
+          v['Name']!.isEmpty ||
+              stationRecords.any(
+                (r) => !identical(r, record) && r['Name'] == v['Name'],
+              )
+          ? 'Enter a unique station name.'
+          : null,
+      canDelete: () => !managedRoutes.any((r) => r.stops.contains(oldName)),
+      afterSave: (v) {
+        if (oldName == null) return;
+        for (var i = 0; i < managedRoutes.length; i++) {
+          final r = managedRoutes[i];
+          managedRoutes[i] = RouteRecord(
+            r.id,
+            r.name,
+            [for (final stop in r.stops) stop == oldName ? v['Name']! : stop],
+            r.segmentMinutes,
+            r.runs,
+          );
+        }
+        if (origin == oldName) origin = v['Name']!;
+        if (destination == oldName) destination = v['Name']!;
+      },
     );
-    name.dispose();
   }
 
   Widget schedulesPage() => Column(
@@ -853,15 +1220,24 @@ class _ZPagesState extends State<ZPages> {
                 for (final schedule in managedSchedules.where(
                   (candidate) => candidate.route == route.id,
                 ))
-                  ZRecord(
-                    title: '${schedule.time}–${schedule.arrival}',
-                    subtitle: schedule.id,
-                    fields: {
-                      'Driver': schedule.driver,
-                      'Vehicle': schedule.plate,
-                    },
-                    status: schedule.status,
-                    onTap: () => _scheduleDialog(t: schedule),
+                  Column(
+                    children: [
+                      ZRecord(
+                        title: schedule.time,
+                        subtitle: schedule.id,
+                        fields: {
+                          'Driver': schedule.driver,
+                          'Vehicle': schedule.plate,
+                          'IS_ACTIVE': schedule.isActive ? 'T' : 'F',
+                        },
+
+                        onTap: () => _scheduleDialog(t: schedule),
+                      ),
+                      timetableDisclosure(
+                        title: const Text('See station timetable'),
+                        children: [scheduleStationTable(schedule)],
+                      ),
+                    ],
                   ),
               ],
             ),
@@ -870,9 +1246,14 @@ class _ZPagesState extends State<ZPages> {
     ],
   );
   Future<void> _scheduleDialog({TripRecord? t, String? initialRoute}) async {
+    if (managedRoutes.isEmpty) {
+      message('Create a route first.');
+      return;
+    }
     String route = t?.route ?? initialRoute ?? managedRoutes.first.id,
         driver = t?.driver ?? 'John Driver',
         vehicle = t?.plate ?? 'SY 2591';
+    var isActive = t?.isActive ?? true;
     final time = TextEditingController(text: t?.time ?? '16:00');
     String stationClock(int stationIndex) {
       try {
@@ -882,8 +1263,7 @@ class _ZPagesState extends State<ZPages> {
         final minutes =
             BookingRules.parseClockMinutes(time.text) +
             selectedRoute.minutesToStop(stationIndex);
-        return '${(minutes ~/ 60).toString().padLeft(2, '0')}:'
-            '${(minutes % 60).toString().padLeft(2, '0')}';
+        return BookingRules.formatClockMinutes(minutes);
       } on FormatException {
         return '--:--';
       }
@@ -920,22 +1300,38 @@ class _ZPagesState extends State<ZPages> {
                   ZSelect(
                     'Driver',
                     value: driver,
-                    items: const [
-                      'John Driver',
-                      'Jane Driver',
-                      'Devid Driver',
-                      'Robert Driver',
-                    ],
+                    items: {
+                      driver,
+                      ...managedSchedules.map((s) => s.driver),
+                      ...users
+                          .where(
+                            (u) =>
+                                u['ISEMP'] == 'T' && u['Position'] == 'EP001',
+                          )
+                          .map((u) => '${u['First name']} ${u['Last name']}'),
+                    }.toList(),
                     onChanged: (v) => update(() => driver = v ?? driver),
                   ),
                   gap(15),
                   ZSelect(
                     'Vehicle',
                     value: vehicle,
-                    items: const ['SY 2591', 'SY 2599', 'BK 1130', 'NN 5566'],
+                    items: {
+                      vehicle,
+                      ...vehicleRecords
+                          .where((v) => v['IS_ACTIVE'] == 'T')
+                          .map((v) => v['Plate']!),
+                    }.toList(),
                     onChanged: (v) => update(() => vehicle = v ?? vehicle),
                   ),
                   gap(20),
+                  ZSelect(
+                    'IS_ACTIVE',
+                    value: isActive ? 'T' : 'F',
+                    items: const ['T', 'F'],
+                    onChanged: (v) => update(() => isActive = v == 'T'),
+                  ),
+                  gap(16),
                   const ZLabel('STATION TIMETABLE', color: ZColors.accent),
                   gap(10),
                   for (final station
@@ -992,31 +1388,47 @@ class _ZPagesState extends State<ZPages> {
                   return;
                 }
                 final endMinutes = startMinutes + sourceRoute.minutes;
-                final hasConflict = managedSchedules.any((candidate) {
-                  if (identical(candidate, t) ||
-                      (candidate.driver != driver &&
-                          candidate.plate != vehicle)) {
-                    return false;
-                  }
-                  final candidateRoute = managedRoutes.firstWhere(
-                    (record) => record.id == candidate.route,
-                  );
-                  final candidateStart = BookingRules.parseClockMinutes(
-                    candidate.time,
-                  );
-                  final candidateEnd = candidateStart + candidateRoute.minutes;
-                  return startMinutes < candidateEnd &&
-                      candidateStart < endMinutes;
-                });
+                final hasConflict =
+                    isActive &&
+                    managedSchedules.any((candidate) {
+                      if (!candidate.isActive ||
+                          identical(candidate, t) ||
+                          (candidate.driver != driver &&
+                              candidate.plate != vehicle)) {
+                        return false;
+                      }
+                      final candidateRoute = managedRoutes.firstWhere(
+                        (record) => record.id == candidate.route,
+                      );
+                      final candidateStart = BookingRules.parseClockMinutes(
+                        candidate.time,
+                      );
+                      final candidateEnd =
+                          candidateStart + candidateRoute.minutes;
+                      return startMinutes < candidateEnd &&
+                          candidateStart < endMinutes;
+                    });
                 if (hasConflict) {
                   message(
                     'The selected driver or vehicle has an overlapping schedule.',
                   );
                   return;
                 }
-                final arrival =
-                    '${(endMinutes ~/ 60).toString().padLeft(2, '0')}:'
-                    '${(endMinutes % 60).toString().padLeft(2, '0')}';
+                final selectedVehicle = vehicleRecords
+                    .where((v) => v['Plate'] == vehicle)
+                    .firstOrNull;
+                if (selectedVehicle == null ||
+                    (isActive && selectedVehicle['IS_ACTIVE'] != 'T')) {
+                  message('Select an available vehicle from Manage Vehicles.');
+                  return;
+                }
+                final capacity = int.parse(selectedVehicle['Seats']!);
+                final reserved = (t?.capacity ?? 0) - (t?.available ?? 0);
+                if (capacity < reserved) {
+                  message('The vehicle cannot hold the already booked seats.');
+                  return;
+                }
+                final arrival = BookingRules.formatClockMinutes(endMinutes);
                 final record = TripRecord(
                   t?.id ?? 'RUN-$route-${time.text.replaceAll(':', '')}',
                   route,
@@ -1024,9 +1436,10 @@ class _ZPagesState extends State<ZPages> {
                   arrival,
                   driver,
                   vehicle,
-                  t?.capacity ?? 9,
-                  t?.available ?? 9,
+                  capacity,
+                  capacity - reserved,
                   'Scheduled',
+                  isActive: isActive,
                 );
                 setState(() {
                   if (t == null) {
@@ -1048,63 +1461,83 @@ class _ZPagesState extends State<ZPages> {
     time.dispose();
   }
 
-  Widget vehiclesPage() {
-    const vehicles = [
-      ['SY 2591', 'Van', '09', 'In service'],
-      ['SY 2599', 'Van', '09', 'In service'],
-      ['BK 1130', 'Bus', '20', 'In service'],
-      ['NN 5566', 'Minibus', '15', 'In service'],
-      ['CH 7788', 'Van', '09', 'Standby'],
-    ];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        header(
-          '07',
-          'FLEET / VEHICLES',
-          'THE FLEET\nIN MOTION.',
-          'Maintain vehicle type, registration, seat capacity and service state. Capacity controls what passengers can reserve.',
-          action: ZButton(
-            'Add vehicle',
-            onPressed: () => message('Vehicle draft opened in this prototype.'),
-            icon: Icons.add,
-          ),
-        ),
-        columns(const [
-          ZStat('Vehicles', '05', '4 active / 1 standby'),
-          ZStat('Total seats', '62', 'Across the listed fleet'),
-          ZStat('Types', '03', 'Van / minibus / bus'),
-        ]),
-        gap(35),
-        ZSectionTitle('01 / REGISTRY', 'Vehicle directory'),
-        ZTable(
-          headers: const ['Registration', 'Type', 'Capacity', 'Status'],
-          rows: vehicles
-              .map(
-                (v) => ZRecord(
-                  title: v[0],
-                  subtitle: 'ZBUS / FLEET',
-                  fields: {'Type': v[1], 'Capacity': '${v[2]} seats'},
-                  status: v[3],
-                  onTap: () => message('${v[0]} vehicle record selected.'),
-                ),
-              )
-              .toList(),
-        ),
-      ],
-    );
-  }
+  Widget vehiclesPage() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      header(
+        '07',
+        'FLEET / VEHICLES',
+        'THE FLEET\nIN MOTION.',
+        'Maintain vehicle registration, capacity, type and availability.',
+        action: ZButton('Add vehicle', onPressed: () => vehicleDialog()),
+      ),
+      ZTable(
+        headers: const ['Registration', 'Type', 'Capacity', 'IS_ACTIVE'],
+        rows: [
+          for (final v in vehicleRecords)
+            ZRecord(
+              title: v['Plate']!,
+              subtitle: v['ID']!,
+              fields: {
+                'Type': v['Type']!,
+                'Capacity': v['Seats']!,
+                'IS_ACTIVE': v['IS_ACTIVE']!,
+              },
+              onTap: () => vehicleDialog(v),
+            ),
+        ],
+      ),
+    ],
+  );
+  void vehicleDialog([Map<String, String>? record]) => directoryDialog(
+    title: 'VEHICLE',
+    records: vehicleRecords,
+    defaults: {
+      'ID': generatedId(vehicleRecords.map((r) => r['ID']!), 'V', 4),
+      'Plate': '',
+      'Seats': '9',
+      'Type': 'Van',
+      'IS_ACTIVE': 'T',
+    },
+    existing: record,
+    choices: const {
+      'Type': ['Van', 'Bus', 'Minibus'],
+      'IS_ACTIVE': ['T', 'F'],
+    },
+    validate: (v) =>
+        v['Plate']!.isEmpty ||
+            (int.tryParse(v['Seats']!) ?? 0) < 1 ||
+            (int.tryParse(v['Seats']!) ?? 100) > 99
+        ? 'Enter a plate and capacity between 1 and 99.'
+        : null,
+    canDelete: () => !managedSchedules.any((s) => s.plate == record?['Plate']),
+  );
 
   List<TripRecord> get matchingTrips => BookingRules.eligibleTrips(
     origin: origin,
     destination: destination,
     currentMinutes: 8 * 60 + 40,
-    trips: trips,
-    routes: routes,
+    trips: managedSchedules.where((t) => t.isActive).toList(),
+    routes: managedRoutes,
+  );
+
+  Widget timetableDisclosure({
+    required Widget title,
+    required List<Widget> children,
+  }) => Material(
+    color: Colors.transparent,
+    child: ExpansionTile(title: title, children: children),
+  );
+
+  String scheduleArrival(TripRecord trip) => BookingRules.formatClockMinutes(
+    BookingRules.parseClockMinutes(trip.time) +
+        managedRoutes.firstWhere((r) => r.id == trip.route).minutes,
   );
 
   Widget scheduleStationTable(TripRecord trip) {
-    final route = routes.firstWhere((candidate) => candidate.id == trip.route);
+    final route = managedRoutes.firstWhere(
+      (candidate) => candidate.id == trip.route,
+    );
     final start = BookingRules.parseClockMinutes(trip.time);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1116,8 +1549,9 @@ class _ZPagesState extends State<ZPages> {
             padding: const EdgeInsets.only(bottom: 7),
             child: rowLabel(
               '${station.key + 1}. ${station.value}',
-              '${((start + route.minutesToStop(station.key)) ~/ 60).toString().padLeft(2, '0')}:'
-                  '${((start + route.minutesToStop(station.key)) % 60).toString().padLeft(2, '0')}',
+              BookingRules.formatClockMinutes(
+                start + route.minutesToStop(station.key),
+              ),
             ),
           ),
       ],
@@ -1150,7 +1584,7 @@ class _ZPagesState extends State<ZPages> {
               ZSelect(
                 'Board at',
                 value: origin,
-                items: stops,
+                items: managedStations,
                 onChanged: (v) => setState(() {
                   origin = v ?? origin;
                   searched = false;
@@ -1159,7 +1593,7 @@ class _ZPagesState extends State<ZPages> {
               ZSelect(
                 'Get off at',
                 value: destination,
-                items: stops,
+                items: managedStations,
                 onChanged: (v) => setState(() {
                   destination = v ?? destination;
                   searched = false;
@@ -1235,7 +1669,7 @@ class _ZPagesState extends State<ZPages> {
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     ZLabel(
-                      '${t.route} / ${routes.firstWhere((r) => r.id == t.route).name}',
+                      '${t.route} / ${managedRoutes.firstWhere((r) => r.id == t.route).name}',
                       color: ZColors.accent,
                     ),
                     ZStatus(t.status),
@@ -1288,7 +1722,7 @@ class _ZPagesState extends State<ZPages> {
 
   Widget seatsPage() {
     final t = widget.selectedTrip;
-    final route = routes.firstWhere((r) => r.id == t.route);
+    final route = managedRoutes.firstWhere((r) => r.id == t.route);
     final availableSeats = widget.availableSeats(t);
     final journey = route.journeyBetween(origin, destination);
     final valid =
@@ -1753,7 +2187,10 @@ class _ZPagesState extends State<ZPages> {
   Widget driverDayPage() {
     final assigned =
         managedSchedules
-            .where((schedule) => schedule.driver == 'John Driver')
+            .where(
+              (schedule) =>
+                  schedule.driver == 'John Driver' && schedule.isActive,
+            )
             .toList()
           ..sort((a, b) => a.time.compareTo(b.time));
     return Column(
@@ -1782,7 +2219,7 @@ class _ZPagesState extends State<ZPages> {
                   subtitle: assigned[index].id,
                   fields: {
                     'Time':
-                        '${assigned[index].time}–${assigned[index].arrival}',
+                        '${assigned[index].time}–${scheduleArrival(assigned[index])}',
                     'Vehicle': assigned[index].plate,
                   },
                   action: index == 0
@@ -1813,6 +2250,11 @@ class _ZPagesState extends State<ZPages> {
                 ),
             ],
           ),
+        for (final schedule in assigned)
+          timetableDisclosure(
+            title: Text('${schedule.time} / See station timetable'),
+            children: [scheduleStationTable(schedule)],
+          ),
         if (assigned.isNotEmpty) ...[
           gap(24),
           ZButton(
@@ -1831,7 +2273,8 @@ class _ZPagesState extends State<ZPages> {
               }
               setState(
                 () => managedSchedules.removeWhere(
-                  (schedule) => schedule.driver == 'John Driver',
+                  (schedule) =>
+                      schedule.driver == 'John Driver' && schedule.isActive,
                 ),
               );
               message('Today’s schedules and on-wait trips were cancelled.');
@@ -1845,7 +2288,10 @@ class _ZPagesState extends State<ZPages> {
   Widget driverTripPage() {
     final driverSchedules =
         managedSchedules
-            .where((schedule) => schedule.driver == 'John Driver')
+            .where(
+              (schedule) =>
+                  schedule.driver == 'John Driver' && schedule.isActive,
+            )
             .toList()
           ..sort((a, b) => a.time.compareTo(b.time));
     final t = driverSchedules.isEmpty ? trips[0] : driverSchedules.first;
@@ -1878,10 +2324,21 @@ class _ZPagesState extends State<ZPages> {
             '${t.capacity - t.available}',
             'Across the full route',
           ),
-          ZStat('Checked in', '$checkedIn', 'Passengers verified'),
+          ZStat(
+            'Checked-in bookings',
+            '$checkedIn',
+            'Booking details verified',
+          ),
+          ZStat(
+            'Passengers boarded',
+            '${boardingCounts.values.fold<int>(0, (sum, count) => sum + count)}',
+            'Actual people boarding',
+          ),
           ZStat('Remaining', '$remaining', 'Awaiting status'),
         ]),
         gap(38),
+        scheduleStationTable(t),
+        gap(20),
         ZSectionTitle('01 / STOP SEQUENCE', 'Boarding plan'),
         for (final stop in route.stops.asMap().entries)
           ZRecord(
@@ -1890,21 +2347,32 @@ class _ZPagesState extends State<ZPages> {
                 'STOP ${(stop.key + 1).toString().padLeft(2, '0')} / ${stop.key == 0 ? '09:30' : '+${stop.key * 5} MIN'}',
             fields: {
               'Board': stop.key == 0
-                  ? 'John Passenger (2), James Passenger (1)'
+                  ? 'John Passenger (2 seats), James Passenger (1 seat)'
                   : stop.key == 1
-                  ? 'Jane Passenger (1)'
+                  ? 'Jane Passenger (1 seat)'
                   : '0 passengers',
-              'Alight': stop.key == 2
-                  ? '2 passengers'
-                  : stop.key == 3
-                  ? '1 passenger'
-                  : '0 passengers',
+              'Drop-off':
+                  '${widget.reservations.where((b) => b.tripId == t.id && route.journeyBetween(b.from, b.to)?.destinationIndex == stop.key).fold<int>(0, (sum, b) => sum + (boardingCounts[b.token] ?? 0))} boarded passengers',
             },
             status: stop.key == 0 ? 'Current stop' : 'Upcoming',
             onTap: () => setState(() => activeStop = stop.value),
           ),
         gap(34),
         ZSectionTitle('02 / MANIFEST', 'Expected passengers'),
+        for (final booking in widget.reservations.where(
+          (b) => b.tripId == t.id && boardingCounts.containsKey(b.token),
+        ))
+          ZRecord(
+            title: booking.id,
+            subtitle: 'Trip ${booking.detailNumber}',
+            fields: {
+              'Pickup': booking.from,
+              'Drop-off': booking.to,
+              'Seats booked': '${booking.seats}',
+              'Passengers boarded': '${boardingCounts[booking.token]}',
+            },
+            status: 'Checked in',
+          ),
         for (final passenger in [
           ('John Passenger', 'BKG-240914-018', stops[0], stops[2], '2'),
           ('Jane Passenger', 'BKG-240914-021', stops[1], stops[3], '1'),
@@ -1980,12 +2448,15 @@ class _ZPagesState extends State<ZPages> {
 
   Widget checkInPage() {
     final input = scanController.text.trim().toUpperCase();
+    final booking = widget.reservations
+        .where((r) => r.token.toUpperCase() == input)
+        .firstOrNull;
     final result = CheckInValidator.validate(
       token: input,
       activeTripId: trips.first.id,
       activeStop: activeStop,
       reservations: widget.reservations,
-      scannedTokens: widget.scanned ? const {'QR-BKG-240914-018-01'} : const {},
+      scannedTokens: boardingCounts.keys.toSet(),
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2009,7 +2480,7 @@ class _ZPagesState extends State<ZPages> {
               children: [
                 const ZLabel('CURRENT BOARDING POINT', color: ZColors.accent),
                 gap(18),
-                Text('MUT CAMPUS', style: ZTheme.display(38)),
+                Text(activeStop, style: ZTheme.display(38)),
                 gap(19),
                 ZSelect(
                   'Stop',
@@ -2063,7 +2534,11 @@ class _ZPagesState extends State<ZPages> {
           'Reservation QR token',
           controller: scanController,
           hint: 'QR-BKG-240914-018-01',
-          onChanged: (_) => setState(() {}),
+          onChanged: (_) => setState(() {
+            showError = false;
+            boardingError = null;
+            passengerCountController.clear();
+          }),
         ),
         gap(13),
         const ZLabel('TRY: QR-BKG-240914-018-01 / QR-BKG-220914-007'),
@@ -2083,7 +2558,7 @@ class _ZPagesState extends State<ZPages> {
               result == CheckInResult.alreadyCheckedIn
                   ? 'Already checked in'
                   : 'Pass accepted',
-              'John User / 2 seats / R01 09:30 / boarding at MUT campus.',
+              '${booking!.id} / Trip ${booking.detailNumber} / ${booking.seats} seats booked',
               color: ZColors.success,
               icon: Icons.check_circle_outline,
             )
@@ -2095,11 +2570,17 @@ class _ZPagesState extends State<ZPages> {
               icon: Icons.error_outline,
             )
           else if (result == CheckInResult.wrongStop)
-            const ZNotice(
+            ZNotice(
               'Wrong stop',
-              'This reservation boards at MUT campus. Select the correct stop before check-in.',
+              'This booking starts at ${booking?.from}. Select that boarding station.',
               color: ZColors.accent,
               icon: Icons.error_outline,
+            )
+          else if (result == CheckInResult.unavailable)
+            const ZNotice(
+              'Check-in unavailable',
+              'This booking is cancelled or marked no-show.',
+              color: ZColors.accent,
             )
           else
             const ZNotice(
@@ -2108,12 +2589,61 @@ class _ZPagesState extends State<ZPages> {
               color: ZColors.accent,
               icon: Icons.error_outline,
             ),
+          if (booking != null) ...[
+            gap(16),
+            rowLabel('PICKUP', booking.from),
+            gap(12),
+            rowLabel('DROP-OFF', booking.to),
+            gap(12),
+            rowLabel('SEATS BOOKED', '${booking.seats}'),
+            if (boardingCounts.containsKey(booking.token)) ...[
+              gap(12),
+              rowLabel(
+                'PASSENGERS BOARDED',
+                '${boardingCounts[booking.token]}',
+              ),
+            ],
+          ],
           if (result == CheckInResult.accepted) ...[
+            gap(16),
+            ZField(
+              'Passengers boarding',
+              controller: passengerCountController,
+              hint: 'Actual number boarding (1–${booking!.seats})',
+              onChanged: (_) => setState(() => boardingError = null),
+            ),
+            gap(10),
+            const Text(
+              'Enter the actual people boarding. Booked seats remain unchanged.',
+            ),
+            if (boardingError != null)
+              Text(
+                boardingError!,
+                style: const TextStyle(color: ZColors.accent),
+              ),
             gap(16),
             ZButton(
               'Confirm boarding',
               onPressed: () {
-                setState(() => manifestStatus['John Passenger'] = 'Checked in');
+                final count = int.tryParse(
+                  passengerCountController.text.trim(),
+                );
+                try {
+                  CheckInValidator.validatePassengerCount(
+                    count ?? 0,
+                    booking.seats,
+                  );
+                  widget.onBoard?.call(booking, count!);
+                } on BookingValidationException catch (error) {
+                  setState(() => boardingError = error.message);
+                  return;
+                }
+                setState(() {
+                  boardingCounts[booking.token] = count!;
+                  if (booking.id == 'BKG-240914-018') {
+                    manifestStatus['John Passenger'] = 'Checked in';
+                  }
+                });
                 widget.onScan();
                 widget.go(ZPage.driverTrip);
               },
@@ -2136,7 +2666,12 @@ class _ZPagesState extends State<ZPages> {
         action: const ZStatus('CLOSED / 10:02'),
       ),
       columns([
-        const ZStat('Booked passengers', '06', 'Across the route'),
+        const ZStat('Seats booked', '06', 'Reserved seats'),
+        ZStat(
+          'Passengers boarded',
+          '${boardingCounts.values.fold<int>(0, (sum, count) => sum + count)}',
+          'Actual people boarding',
+        ),
         ZStat(
           'Checked in',
           manifestStatus.values
@@ -2454,6 +2989,8 @@ class _ZPagesState extends State<ZPages> {
                         'PD002 / Computer Science',
                         'PD003 / Civil Engineering',
                         'PD004 / Multimedia',
+                        'PD005 / Architecture',
+                        'PD006 / Business',
                       ]
                     : const ['ED001 / Transport', 'ED002 / Management'],
                 onChanged: widget.role == ZRole.passenger

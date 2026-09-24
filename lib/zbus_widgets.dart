@@ -247,9 +247,11 @@ class ZSelect extends StatelessWidget {
     required this.value,
     required this.items,
     required this.onChanged,
+    this.itemLabels = const {},
   });
   final String label, value;
   final List<String> items;
+  final Map<String, String> itemLabels;
   final ValueChanged<String?>? onChanged;
   @override
   Widget build(BuildContext context) => Column(
@@ -267,7 +269,7 @@ class ZSelect extends StatelessWidget {
               (e) => DropdownMenuItem(
                 value: e,
                 child: Text(
-                  e,
+                  itemLabels[e] ?? e,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 13),
                 ),

@@ -7,8 +7,15 @@ class SessionUser {
     required this.position,
     required this.role,
     required this.allowedPages,
+    this.isEmployee = false,
+    this.salary,
+    this.departmentId = 'PD001',
+    this.positionId = 'PP001',
   });
 
+  final String departmentId, positionId;
+  final bool isEmployee;
+  final double? salary;
   final String name, email, position;
   final ZRole role;
   final Set<ZPage> allowedPages;
@@ -30,6 +37,7 @@ enum ZPage {
   departments,
   positions,
   users,
+  employees,
   routes,
   stops,
   schedules,
@@ -52,6 +60,7 @@ extension ZPageInfo on ZPage {
     ZPage.departments => 'Manage departments',
     ZPage.positions => 'Manage positions',
     ZPage.users => 'Manage users',
+    ZPage.employees => 'Manage employees',
     ZPage.routes => 'Manage routes',
     ZPage.stops => 'Manage stations',
     ZPage.schedules => 'Manage schedules',
@@ -136,8 +145,10 @@ class TripRecord {
     this.plate,
     this.capacity,
     this.available,
-    this.status,
-  );
+    this.status, {
+    this.isActive = true,
+  });
+  final bool isActive;
   final String id, route, time, arrival, driver, plate, status;
   final int capacity, available;
 }
