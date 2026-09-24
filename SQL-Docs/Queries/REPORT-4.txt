@@ -1,0 +1,46 @@
+--UI side must process this data into final report
+--Route list must be pulled seperately
+
+--Idea 1 minimal returns
+SELECT
+    TO_CHAR(B."DATE", 'DAY') AS "DAY",
+    R."NAME",
+    SUM(TLD."PASSENGER") AS PASSENGERS
+FROM
+    "BOOKING" B
+    JOIN "TRIP_LOG_DETAIL" TLD 
+        ON B."BOOKING_ID" = TLD."BID"
+    JOIN "BOOKING_DETAIL" BD 
+        ON B."BOOKING_ID" = BD."BID"
+        AND TLD."NO" = BD."NO"
+    JOIN "ROUTE" R 
+        ON BD."ROUTE" = R."ID"
+WHERE
+    B."DATE" >= DATE '2025-01-01'
+    AND B."DATE" < DATE '2026-01-01'
+GROUP BY
+    TO_CHAR(B."DATE", 'DAY'), R."NAME";
+    
+    
+--Idea 2 More return columns
+SELECT
+    TO_CHAR(TL."DATE", 'DAY') AS "DAY",
+    R."ID" AS "ROUTE_ID",
+    R."NAME" AS "ROUTE_NAME",
+    SUM(TLD."PASSENGER") AS "PASSENGERS"
+FROM
+    "TRIP_LOG" TL
+    JOIN "TRIP_LOG_DETAIL" TLD 
+        ON TL."LOG_ID" = TLD."LID"
+    JOIN "BOOKING_DETAIL" BD 
+        ON TLD."BID" = BD."BID" 
+        AND TLD."NO" = BD."NO"
+    JOIN "ROUTE" R
+        ON BD."ROUTE" = R."ID"
+WHERE
+    TL."DATE" >= DATE '2025-01-01'
+    AND TL."DATE" < DATE '2026-01-01'
+GROUP BY
+    TO_CHAR(TL."DATE", 'DAY'),
+    R."ID",
+    R."NAME";
