@@ -1,22 +1,19 @@
-# Download Things
+# Download Things (Oracle Database Free)
 docker pull container-registry.oracle.com/database/free:latest-lite
 
-# Make Volume
+# Create persistent volume
 docker volume create OracleDBData
 
 # Run The Thing
-docker run -d --name oracle-db -p 1521:1521 -e ORACLE_PWD="Admin" -v OracleDBData:/opt/oracle/oradata container-registry.oracle.com/database/free:latest-litedocker logs -f oracle-db
-
-#Run This if last one doesn't works
 docker run -d --name oracle-db -p 1521:1521 -e ORACLE_PWD="Admin" -v OracleDBData:/opt/oracle/oradata container-registry.oracle.com/database/free:latest-lite
 
 # Read Logs (Optional)
 docker logs -f oracle-db
 
-# Run Shell inside Image
+# Open SQL+ inside the container
 docker exec -it oracle-db sqlplus system/Admin@FREEPDB1
 
-#SQL 
+#Inside SQL+
 CREATE ROLE DEV;
 GRANT CREATE SESSION TO DEV;
 GRANT CREATE TABLE TO DEV;
