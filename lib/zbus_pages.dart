@@ -67,31 +67,24 @@ class _ZPagesState extends State<ZPages> {
   String reservationFilter = 'On wait';
   String report = 'Trip log', activeStop = stops[0];
   int seatCount = 1;
-  bool searched = false, loading = false, showError = false;
-  final staffSearch = TextEditingController();
+  bool searched = false, showError = false;
   final scanController = TextEditingController();
   final profileName = TextEditingController(text: 'John');
   final profileLastName = TextEditingController(text: 'User');
   final profileEmail = TextEditingController(text: 'johnuser@zbus.co.th');
   final permissions = <String, Set<String>>{
     'Operations manager': {
-      'Operations overview',
-      'Manage employees',
-      'Manage access',
       'Manage routes',
       'Manage stations',
       'Manage schedules',
       'Manage vehicles',
-      'Manage assignments',
       'Statistic reports',
     },
     'Dispatcher': {
-      'Operations overview',
       'Manage routes',
       'Manage stations',
       'Manage schedules',
       'Manage vehicles',
-      'Manage assignments',
       'Statistic reports',
     },
     'Driver': {
@@ -103,9 +96,10 @@ class _ZPagesState extends State<ZPages> {
     'Student': {'Find a trip', 'Reserve seats', 'My reservations'},
   };
   String permissionRole = 'Dispatcher';
+  String accountDepartment = 'PD001 / Technology';
+  String accountPosition = 'PP001 / Student';
   @override
   void dispose() {
-    staffSearch.dispose();
     scanController.dispose();
     profileName.dispose();
     profileLastName.dispose();
@@ -191,18 +185,13 @@ class _ZPagesState extends State<ZPages> {
 
   @override
   Widget build(BuildContext context) => switch (widget.page) {
-    ZPage.dashboard => dashboard(),
     ZPage.departments => departmentsPage(),
     ZPage.positions => permissionsPage(),
     ZPage.users => usersPage(),
-    ZPage.staff => staffPage(),
-    ZPage.permissions => permissionsPage(),
     ZPage.routes => routesPage(),
     ZPage.stops => stopsPage(),
     ZPage.schedules => schedulesPage(),
     ZPage.vehicles => vehiclesPage(),
-    ZPage.assignments => assignmentsPage(),
-    ZPage.drivers => driversPage(),
     ZPage.search => searchPage(),
     ZPage.seats => seatsPage(),
     ZPage.bookingCart => bookingCartPage(),
@@ -214,95 +203,7 @@ class _ZPagesState extends State<ZPages> {
     ZPage.completion => completionPage(),
     ZPage.reports => reportsPage(),
     ZPage.profile => profilePage(),
-    ZPage.states => statesPage(),
   };
-
-  Widget dashboard() => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      header(
-        '01',
-        'CONTROL ROOM / MON 14 SEP',
-        'THE NETWORK\nAT A GLANCE.',
-        'A live operational picture of routes, runs, seats and service across the MUT Nong Chok shuttle network.',
-        action: ZButton(
-          'Build a schedule',
-          onPressed: () => widget.go(ZPage.schedules),
-          icon: Icons.arrow_forward,
-        ),
-      ),
-      columns(const [
-        ZStat('Trips today', '12', '8 scheduled / 3 boarding / 1 completed'),
-        ZStat('Reservations', '86', '74 confirmed / 12 checked in'),
-        ZStat('Available seats', '42', 'Across the next eight departures'),
-        ZStat('Active routes', '03', '7 stops across Nong Chok'),
-      ], desktopColumns: 4),
-      gap(42),
-      ZSectionTitle(
-        '01 / TODAY',
-        'Next departures',
-        trailing: TextButton(
-          onPressed: () => widget.go(ZPage.schedules),
-          child: const Text('VIEW ALL →'),
-        ),
-      ),
-      ZTable(
-        headers: const ['Run', 'Departure', 'Vehicle', 'Seats', 'Status'],
-        rows: managedSchedules
-            .take(5)
-            .map(
-              (t) => ZRecord(
-                title:
-                    '${t.route}  /  ${routes.firstWhere((r) => r.id == t.route).name}',
-                subtitle: t.id,
-                fields: {
-                  'Departure': t.time,
-                  'Vehicle': t.plate,
-                  'Seats': '${widget.availableSeats(t)} / ${t.capacity}',
-                },
-                status: t.status,
-                onTap: () => widget.go(ZPage.schedules),
-              ),
-            )
-            .toList(),
-      ),
-      gap(42),
-      ZSectionTitle('02 / SIGNALS', 'Operations notes'),
-      columns([
-        const ZNotice(
-          'Dispatch check',
-          'Driver and vehicle allocations are checked for overlapping runs before a schedule is published.',
-          color: ZColors.success,
-        ),
-        const ZNotice(
-          'Capacity watch',
-          'R02 at 11:00 has only two seats remaining. Passenger booking is limited by segment capacity.',
-        ),
-        ZPanel(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const ZLabel('DEEPER VIEW'),
-              gap(16),
-              Text('REPORTS & FLOW', style: ZTheme.display(27)),
-              gap(14),
-              const Text(
-                'Compare boardings, reservations and vehicle utilization.',
-                style: TextStyle(color: ZColors.muted),
-              ),
-              gap(20),
-              ZButton(
-                'Open reports',
-                secondary: true,
-                onPressed: () => widget.go(ZPage.reports),
-                icon: Icons.arrow_forward,
-              ),
-            ],
-          ),
-        ),
-      ]),
-    ],
-  );
 
   Widget departmentsPage() => _masterDirectory(
     index: '02',
@@ -310,42 +211,76 @@ class _ZPagesState extends State<ZPages> {
     title: 'TEAMS BEHIND\nTHE JOURNEY.',
     description: 'Create and maintain the departments referenced by users and employees.',
     action: 'Add department',
-    headers: const ['Department', 'ID', 'Account type', 'Status'],
+    headers: const ['Department', 'ID', 'Account type'],
+    showStatus: false,
     records: const [
-      ['Transport', 'D0001', 'Employee', 'Active'],
-      ['Management', 'D0002', 'Employee', 'Active'],
-      ['Computer Science', 'D0007', 'Passenger', 'Active'],
-      ['Staff', 'D0005', 'Passenger', 'Active'],
+      ['Transport', 'ED001', 'Employee', ''],
+      ['Management', 'ED002', 'Employee', ''],
+      ['Technology', 'PD001', 'Passenger', ''],
+      ['Computer Science', 'PD002', 'Passenger', ''],
     ],
   );
 
-  Widget usersPage() => _masterDirectory(
-    index: '04',
-    kicker: 'MASTER FILE / USERS',
-    title: 'ONE ACCOUNT.\nDEFINED ACCESS.',
-    description: 'Manage every account in one directory. Its position determines which pages are available after sign-in.',
-    action: 'Add user',
-    headers: const ['User', 'ID', 'Position', 'Status'],
-    records: const [
-      ['Admin System', 'U000000009', 'Admin', 'Active'],
-      ['Somchai Jaidee', 'U000000001', 'Driver', 'Active'],
-      ['Student One', 'U000000004', 'Student', 'Active'],
-      ['Teacher A', 'U000000007', 'Teacher', 'Active'],
-    ],
-  );
-
-  Widget driversPage() => _masterDirectory(
-    index: '09',
-    kicker: 'OPERATIONS / DRIVERS',
-    title: 'READY FOR\nTHE NEXT RUN.',
-    description: 'Review eligible drivers and open their run assignments. Driver access comes from the Driver position.',
-    action: 'Assign driver',
-    headers: const ['Driver', 'Employee ID', 'Runs today', 'Status'],
-    records: const [
-      ['John Driver', 'EMP-001', '03', 'Assigned'],
-      ['Jane Driver', 'EMP-002', '02', 'Assigned'],
-      ['Devid Driver', 'EMP-003', '02', 'Available'],
-      ['Robert Driver', 'EMP-004', '01', 'Assigned'],
+  Widget usersPage() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      header(
+        '04',
+        'MASTER FILE / USERS',
+        'ONE USER TABLE.\nEVERY PERSON.',
+        'Passengers and employees use the same user table. Department and position IDs identify which type of account each user has.',
+        action: ZButton(
+          'Add user',
+          onPressed: () => message('User form opened in this prototype.'),
+          icon: Icons.add,
+        ),
+      ),
+      ZTable(
+        headers: const ['User', 'Department', 'Position', 'Status'],
+        rows: [
+          ZRecord(
+            title: 'Admin System',
+            subtitle: 'U000000009',
+            fields: const {
+              'Department': 'ED002 / Management',
+              'Position': 'EP003 / Admin',
+            },
+            status: 'Active',
+            onTap: () => message('Admin System opened for editing.'),
+          ),
+          ZRecord(
+            title: 'Somchai Jaidee',
+            subtitle: 'U000000001',
+            fields: const {
+              'Department': 'ED001 / Transport',
+              'Position': 'EP001 / Driver',
+            },
+            status: 'Active',
+            onTap: () => message('Somchai Jaidee opened for editing.'),
+          ),
+          ZRecord(
+            title: 'Technology Student',
+            subtitle: 'U000000004',
+            fields: const {
+              'Department': 'PD001 / Technology',
+              'Position': 'PP001 / Student',
+            },
+            status: 'Active',
+            onTap: () => message('Technology Student opened for editing.'),
+          ),
+          ZRecord(
+            title: 'Computer Science Student',
+            subtitle: 'U000000005',
+            fields: const {
+              'Department': 'PD002 / Computer Science',
+              'Position': 'PP001 / Student',
+            },
+            status: 'Active',
+            onTap: () =>
+                message('Computer Science Student opened for editing.'),
+          ),
+        ],
+      ),
     ],
   );
 
@@ -357,6 +292,7 @@ class _ZPagesState extends State<ZPages> {
     required String action,
     required List<String> headers,
     required List<List<String>> records,
+    bool showStatus = true,
   }) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
@@ -379,7 +315,7 @@ class _ZPagesState extends State<ZPages> {
                 title: record[0],
                 subtitle: record[1],
                 fields: {headers[2]: record[2]},
-                status: record[3],
+                status: showStatus ? record[3] : null,
                 onTap: () => message('${record[0]} opened for editing.'),
               ),
             )
@@ -388,133 +324,21 @@ class _ZPagesState extends State<ZPages> {
     ],
   );
 
-  Widget staffPage() {
-    final filtered = staff
-        .where(
-          (p) => p
-              .join(' ')
-              .toLowerCase()
-              .contains(staffSearch.text.toLowerCase()),
-        )
-        .toList();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        header(
-          '02',
-          'MASTER FILE / PEOPLE',
-          'THE PEOPLE\nWHO MOVE US.',
-          'Manage employees, departments and positions. Role-based access follows the employee position.',
-          action: ZButton(
-            'Add employee',
-            onPressed: () => _employeeDialog(),
-            icon: Icons.add,
-          ),
-        ),
-        columns(const [
-          ZStat('Employees', '06', 'Across transport operations'),
-          ZStat('Active drivers', '04', 'Available for assignment'),
-          ZStat('Departments', '01', 'Transport'),
-        ]),
-        gap(36),
-        ZField(
-          'Search employees',
-          controller: staffSearch,
-          hint: 'Name, ID, role or department',
-          onChanged: (_) => setState(() {}),
-        ),
-        gap(20),
-        if (filtered.isEmpty)
-          const ZEmpty(
-            'No matching people',
-            'Try a different name, ID, or position.',
-          )
-        else
-          ZTable(
-            headers: const ['Employee', 'Position', 'Department', 'Status'],
-            rows: filtered
-                .map(
-                  (p) => ZRecord(
-                    title: p[0],
-                    subtitle: p[1],
-                    fields: {'Position': p[2], 'Department': p[3]},
-                    status: p[4],
-                    onTap: () => _employeeDialog(person: p),
-                  ),
-                )
-                .toList(),
-          ),
-      ],
-    );
-  }
-
-  Future<void> _employeeDialog({List<String>? person}) async {
-    final name = TextEditingController(text: person?.first);
-    String position = person?[2] ?? 'Driver';
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialog) => AlertDialog(
-          title: Text(
-            person == null ? 'ADD EMPLOYEE' : 'EMPLOYEE DETAIL',
-            style: ZTheme.display(35),
-          ),
-          content: SizedBox(
-            width: 430,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ZField('Full name', controller: name, hint: 'Employee name'),
-                gap(20),
-                ZSelect(
-                  'Position',
-                  value: position,
-                  items: const ['Driver', 'Dispatcher', 'Operations manager'],
-                  onChanged: (v) => setDialog(() => position = v ?? position),
-                ),
-                gap(20),
-                const ZNotice(
-                  'Access rule',
-                  'Screen access is controlled by position in the dynamic permissions matrix.',
-                  color: ZColors.success,
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            ZButton(
-              'Cancel',
-              secondary: true,
-              onPressed: () => Navigator.pop(dialogContext),
-            ),
-            ZButton(
-              'Save mockup',
-              onPressed: () {
-                Navigator.pop(dialogContext);
-                message('Employee draft saved in this prototype.');
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-    name.dispose();
-  }
-
   Widget permissionsPage() {
+    const positionIds = {
+      'Operations manager': 'EP002',
+      'Dispatcher': 'EP004',
+      'Driver': 'EP001',
+      'Student': 'PP001',
+    };
     final modules = [
-      'Operations overview',
       'Manage departments',
       'Manage positions',
       'Manage users',
-      'Manage employees',
-      'Manage access',
       'Manage routes',
       'Manage stations',
       'Manage schedules',
       'Manage vehicles',
-      'Manage assignments',
-      'Manage drivers',
       'Statistic reports',
       'Find a trip',
       'Reserve seats',
@@ -561,7 +385,10 @@ class _ZPagesState extends State<ZPages> {
                               : ZColors.muted,
                         ),
                         gap(15),
-                        Text(p.toUpperCase(), style: ZTheme.display(27)),
+                        Text(
+                          '${positionIds[p]} / ${p.toUpperCase()}',
+                          style: ZTheme.display(27),
+                        ),
                         gap(17),
                         Text(
                           '${p == 'Student' ? 'Passenger' : 'Employee'} / ${permissions[p]!.length} screens enabled',
@@ -1223,11 +1050,11 @@ class _ZPagesState extends State<ZPages> {
 
   Widget vehiclesPage() {
     const vehicles = [
-      ['SY 2591', 'Van', '09', '4 runs', 'In service'],
-      ['SY 2599', 'Van', '09', '4 runs', 'In service'],
-      ['BK 1130', 'Bus', '20', '2 runs', 'In service'],
-      ['NN 5566', 'Minibus', '15', '1 run', 'In service'],
-      ['CH 7788', 'Van', '09', '0 runs', 'Standby'],
+      ['SY 2591', 'Van', '09', 'In service'],
+      ['SY 2599', 'Van', '09', 'In service'],
+      ['BK 1130', 'Bus', '20', 'In service'],
+      ['NN 5566', 'Minibus', '15', 'In service'],
+      ['CH 7788', 'Van', '09', 'Standby'],
     ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1251,106 +1078,18 @@ class _ZPagesState extends State<ZPages> {
         gap(35),
         ZSectionTitle('01 / REGISTRY', 'Vehicle directory'),
         ZTable(
-          headers: const [
-            'Registration',
-            'Type',
-            'Capacity',
-            'Today',
-            'Status',
-          ],
+          headers: const ['Registration', 'Type', 'Capacity', 'Status'],
           rows: vehicles
               .map(
                 (v) => ZRecord(
                   title: v[0],
                   subtitle: 'ZBUS / FLEET',
-                  fields: {
-                    'Type': v[1],
-                    'Capacity': '${v[2]} seats',
-                    'Today': v[3],
-                  },
-                  status: v[4],
+                  fields: {'Type': v[1], 'Capacity': '${v[2]} seats'},
+                  status: v[3],
                   onTap: () => message('${v[0]} vehicle record selected.'),
                 ),
               )
               .toList(),
-        ),
-      ],
-    );
-  }
-
-  Widget assignmentsPage() {
-    const drivers = [
-      'John Driver',
-      'Jane Driver',
-      'Devid Driver',
-      'Robert Driver',
-    ];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        header(
-          '08',
-          'OPERATIONS / DRIVER ASSIGNMENTS',
-          'SCHEDULE ONCE.\nASSIGN TOGETHER.',
-          'Driver and vehicle assignments come directly from each schedule. Edit a departure to change its route, time, driver, or vehicle.',
-          action: ZButton(
-            'Create schedule',
-            onPressed: () => _scheduleDialog(),
-            icon: Icons.add,
-          ),
-        ),
-        columns([
-          const ZStat('Drivers', '04', 'Available in the driver directory'),
-          ZStat(
-            'Assigned schedules',
-            managedSchedules.length.toString().padLeft(2, '0'),
-            'Route, time, driver and vehicle',
-          ),
-          const ZStat(
-            'Conflict rule',
-            'ON',
-            'Driver and vehicle overlap check',
-          ),
-        ]),
-        gap(32),
-        ZSectionTitle('01 / ROSTER', 'Assignments from schedules'),
-        for (final driver in drivers)
-          Builder(
-            builder: (context) {
-              final assigned = managedSchedules
-                  .where((schedule) => schedule.driver == driver)
-                  .toList();
-              return ZRecord(
-                title: driver,
-                subtitle: 'TRANSPORT / DRIVER',
-                fields: {
-                  'Runs': assigned.isEmpty
-                      ? 'No schedules'
-                      : assigned
-                            .map(
-                              (schedule) =>
-                                  '${schedule.route} ${schedule.time}',
-                            )
-                            .join('  ·  '),
-                  'Vehicles': assigned.isEmpty
-                      ? '—'
-                      : assigned
-                            .map((schedule) => schedule.plate)
-                            .toSet()
-                            .join(' / '),
-                },
-                status: assigned.isEmpty ? 'Available' : 'Assigned',
-                onTap: assigned.isEmpty
-                    ? () => _scheduleDialog()
-                    : () => _scheduleDialog(t: assigned.first),
-              );
-            },
-          ),
-        gap(32),
-        const ZNotice(
-          'Assignment rule',
-          'Choose the driver and vehicle while creating or editing a schedule. The same resource cannot be assigned to overlapping route windows.',
-          color: ZColors.success,
         ),
       ],
     );
@@ -2017,80 +1756,69 @@ class _ZPagesState extends State<ZPages> {
             .where((schedule) => schedule.driver == 'John Driver')
             .toList()
           ..sort((a, b) => a.time.compareTo(b.time));
-    final next = assigned.isEmpty ? null : assigned.first;
-    final nextRoute = next == null
-        ? null
-        : managedRoutes.firstWhere((route) => route.id == next.route);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         header(
           '13',
-          'DRIVER / MON 14 SEP',
+          'DRIVER / DAILY SCHEDULE',
           'MY DRIVING\nSCHEDULE.',
-          'Schedules assigned to John Driver. Route, departure time and vehicle come directly from Manage Schedules.',
-          action: ZStatus('${assigned.length} ASSIGNMENTS'),
+          'Daily schedules where SCHEDULE.DRIVER is the signed-in driver. Driver assignment is maintained in Manage Schedules.',
+          action: ZStatus('${assigned.length} SCHEDULES'),
         ),
-        if (next == null)
+        if (assigned.isEmpty)
           const ZEmpty(
             'No driving schedule',
-            'Assign this driver while creating a schedule.',
+            'No schedule is assigned to this driver today.',
           )
         else
-          ZPanel(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const ZLabel('NEXT ASSIGNED RUN', color: ZColors.accent),
-                gap(25),
-                Text(next.time, style: ZTheme.display(68)),
-                gap(11),
-                Text(
-                  '${nextRoute!.name.toUpperCase()} / ${next.route}',
-                  style: ZTheme.mono(12, color: ZColors.ink),
-                ),
-                gap(24),
-                const ZRule(),
-                gap(17),
-                rowLabel('VEHICLE', next.plate),
-                gap(13),
-                rowLabel('FIRST STATION', nextRoute.stops.first),
-                gap(13),
-                rowLabel('WINDOW', '${next.time}–${next.arrival}'),
-                gap(23),
-                ZButton(
-                  widget.tripStarted ? 'Continue trip' : 'Start trip',
-                  onPressed: widget.tripStarted
+          ZTable(
+            headers: const ['Route', 'Time', 'Vehicle', 'Action'],
+            rows: [
+              for (var index = 0; index < assigned.length; index++)
+                ZRecord(
+                  title:
+                      '${assigned[index].route} / ${managedRoutes.firstWhere((route) => route.id == assigned[index].route).name}',
+                  subtitle: assigned[index].id,
+                  fields: {
+                    'Time':
+                        '${assigned[index].time}–${assigned[index].arrival}',
+                    'Vehicle': assigned[index].plate,
+                  },
+                  action: index == 0
+                      ? ZButton(
+                          widget.tripStarted ? 'End trip' : 'Start trip',
+                          compact: true,
+                          onPressed: widget.tripStarted
+                              ? () => confirm(
+                                  'Finish the current trip?',
+                                  'The trip will be closed and its passenger results summarized.',
+                                  widget.onClose,
+                                )
+                              : widget.onStart,
+                          icon: widget.tripStarted
+                              ? Icons.stop_circle_outlined
+                              : Icons.play_arrow,
+                        )
+                      : ZButton(
+                          'Start trip',
+                          compact: true,
+                          secondary: true,
+                          onPressed: widget.tripStarted ? null : widget.onStart,
+                          icon: Icons.play_arrow,
+                        ),
+                  onTap: widget.tripStarted && index == 0
                       ? () => widget.go(ZPage.driverTrip)
-                      : widget.onStart,
-                  icon: Icons.arrow_forward,
+                      : null,
                 ),
-              ],
-            ),
-          ),
-        gap(42),
-        ZSectionTitle('01 / FULL ROSTER', 'Assigned schedules'),
-        for (final schedule in assigned)
-          ZRecord(
-            title:
-                '${schedule.time} / ${managedRoutes.firstWhere((route) => route.id == schedule.route).name}',
-            subtitle: schedule.id,
-            fields: {
-              'Window': '${schedule.time}–${schedule.arrival}',
-              'Vehicle': schedule.plate,
-              'Route': schedule.route,
-            },
-            status: identical(schedule, next) && widget.tripStarted
-                ? 'In progress'
-                : schedule.status,
-            onTap: () => widget.go(ZPage.driverTrip),
+            ],
           ),
         if (assigned.isNotEmpty) ...[
           gap(24),
           ZButton(
             'Cancel today’s schedules',
             secondary: true,
-            onPressed: () => confirm('Cancel today’s driving schedules?', 'All on-wait booking details for today will be cancelled and the driver schedules removed.', () {
+            onPressed: () => confirm('Cancel today’s driving schedules?', 'All on-wait booking details for today will be cancelled. This also represents automatic cancellation when the driver does not show up.', () {
               final bookingIds = widget.reservations
                   .where(
                     (reservation) =>
@@ -2106,7 +1834,7 @@ class _ZPagesState extends State<ZPages> {
                   (schedule) => schedule.driver == 'John Driver',
                 ),
               );
-              message('Today’s driver schedules and waiting trips cancelled.');
+              message('Today’s schedules and on-wait trips were cancelled.');
             }),
           ),
         ],
@@ -2680,9 +2408,9 @@ class _ZPagesState extends State<ZPages> {
               rowLabel('MEMBER ID', 'MUT-260914-014'),
               gap(13),
               rowLabel('POSITION', switch (widget.role) {
-                ZRole.admin => 'OPERATIONS MANAGER',
-                ZRole.passenger => 'STUDENT',
-                ZRole.driver => 'DRIVER',
+                ZRole.admin => 'EP002 / OPERATIONS MANAGER',
+                ZRole.passenger => 'PP001 / STUDENT',
+                ZRole.driver => 'EP001 / DRIVER',
               }),
             ],
           ),
@@ -2710,26 +2438,58 @@ class _ZPagesState extends State<ZPages> {
                 controller: profileEmail,
                 onChanged: (_) => setState(() {}),
               ),
-              if (widget.role != ZRole.passenger) ...[
-                gap(20),
-                const ZSelect(
-                  'Department',
-                  value: 'D0001 / Transport',
-                  items: ['D0001 / Transport', 'D0002 / Management'],
-                  onChanged: null,
-                ),
-                gap(20),
-                const ZSelect(
-                  'Position',
-                  value: 'P0001 / Driver',
-                  items: [
-                    'P0001 / Driver',
-                    'P0005 / Deputy Manager',
-                    'P0007 / Admin',
-                  ],
-                  onChanged: null,
-                ),
-              ],
+              gap(20),
+              ZSelect(
+                widget.role == ZRole.passenger
+                    ? 'Passenger department'
+                    : 'Employee department · locked',
+                value: widget.role == ZRole.passenger
+                    ? accountDepartment
+                    : widget.role == ZRole.driver
+                    ? 'ED001 / Transport'
+                    : 'ED002 / Management',
+                items: widget.role == ZRole.passenger
+                    ? const [
+                        'PD001 / Technology',
+                        'PD002 / Computer Science',
+                        'PD003 / Civil Engineering',
+                        'PD004 / Multimedia',
+                      ]
+                    : const ['ED001 / Transport', 'ED002 / Management'],
+                onChanged: widget.role == ZRole.passenger
+                    ? (value) => setState(
+                        () => accountDepartment = value ?? accountDepartment,
+                      )
+                    : null,
+              ),
+              gap(20),
+              ZSelect(
+                widget.role == ZRole.passenger
+                    ? 'Passenger position'
+                    : 'Employee position · locked',
+                value: widget.role == ZRole.passenger
+                    ? accountPosition
+                    : widget.role == ZRole.driver
+                    ? 'EP001 / Driver'
+                    : 'EP002 / Operations manager',
+                items: widget.role == ZRole.passenger
+                    ? const [
+                        'PP001 / Student',
+                        'PP002 / Teaching Assistant',
+                        'PP003 / Teacher',
+                        'PP004 / Guest',
+                      ]
+                    : const [
+                        'EP001 / Driver',
+                        'EP002 / Operations manager',
+                        'EP003 / Admin',
+                      ],
+                onChanged: widget.role == ZRole.passenger
+                    ? (value) => setState(
+                        () => accountPosition = value ?? accountPosition,
+                      )
+                    : null,
+              ),
               gap(24),
               ZButton(
                 'Save profile',
@@ -2747,108 +2507,6 @@ class _ZPagesState extends State<ZPages> {
         'Authentication and account changes are visual prototype flows. Production access requires server-side validation.',
         color: ZColors.success,
       ),
-    ],
-  );
-
-  Widget statesPage() => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      header(
-        '19',
-        'SYSTEM / STATE LIBRARY',
-        'EVERY SIGNAL\nHAS A STATE.',
-        'Consistent feedback for moments when a request is waiting, succeeds, needs attention or cannot continue.',
-      ),
-      columns([
-        const ZEmpty(
-          'Nothing scheduled',
-          'New departures will appear here when a route and vehicle are assigned.',
-        ),
-        ZPanel(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const ZLabel('LOADING'),
-              gap(26),
-              const LinearProgressIndicator(
-                color: ZColors.ink,
-                backgroundColor: ZColors.line,
-              ),
-              gap(21),
-              Text('CHECKING THE NETWORK', style: ZTheme.display(27)),
-              gap(11),
-              const Text(
-                'Please wait while available trips are refreshed.',
-                style: TextStyle(color: ZColors.muted),
-              ),
-            ],
-          ),
-        ),
-        const ZNotice(
-          'Reservation confirmed',
-          'Your pass is ready. Show its QR token when you board.',
-          color: ZColors.success,
-          icon: Icons.check_circle_outline,
-        ),
-        const ZNotice(
-          'Only two seats left',
-          'Select two seats or choose a later departure.',
-          color: ZColors.warning,
-        ),
-        const ZNotice(
-          'Assignment conflict',
-          'This driver already has an overlapping departure. Choose another driver or time.',
-          color: ZColors.accent,
-          icon: Icons.error_outline,
-        ),
-      ], desktopColumns: 2),
-      gap(42),
-      ZSectionTitle('01 / CONTROLS', 'Interaction examples'),
-      columns([
-        const ZField('Search', hint: 'Search routes, people or IDs'),
-        const ZSelect(
-          'Route',
-          value: 'R01',
-          items: ['R01', 'R02', 'R03'],
-          onChanged: null,
-        ),
-      ], desktopColumns: 2),
-      gap(25),
-      Wrap(
-        spacing: 9,
-        runSpacing: 9,
-        children: [
-          ZButton(
-            'Success notice',
-            onPressed: () => message('Operation completed successfully.'),
-          ),
-          ZButton(
-            'Open dialog',
-            secondary: true,
-            onPressed: () => confirm(
-              'Review action?',
-              'This dialog demonstrates the consistent confirmation pattern.',
-              () => message('Action confirmed.'),
-            ),
-          ),
-          ZButton(
-            'Loading preview',
-            secondary: true,
-            onPressed: () async {
-              setState(() => loading = true);
-              await Future<void>.delayed(const Duration(milliseconds: 900));
-              if (mounted) setState(() => loading = false);
-            },
-          ),
-        ],
-      ),
-      if (loading) ...[
-        gap(22),
-        const LinearProgressIndicator(
-          color: ZColors.ink,
-          backgroundColor: ZColors.line,
-        ),
-      ],
     ],
   );
 }

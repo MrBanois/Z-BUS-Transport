@@ -13,13 +13,13 @@ Sign in through the single member form. The current passenger mockup account can
 
 ## Screens and flows
 
-- Operations: overview, departments, positions and editable permissions, users, employees, route/station/schedule CRUD, vehicles, drivers, assignments, seven report views, interface states, and account.
+- Management: department CRUD, position and permission CRUD, one user directory for passengers and employees, vehicle CRUD, route/station/schedule CRUD, and five report views.
 - All users: registration/sign-in, multi-trip booking, grouped booking history with one QR per trip, individual or whole-booking cancellation, and account.
 - Driver: daily assignments, run detail and passenger manifest, check-in validation states, and trip closeout.
 
 Mock data mirrors the reference routes, Nong Chok stops, 9-seat vans, 20-seat buses, named drivers, and reservation statuses. The search applies a **20-minute** booking cutoff using a fixed **08:40 ICT preview clock**. Seat selection is capped at **four** and at the available capacity of the sample run.
 
-This is a UI prototype with in-memory state. The displayed QR pattern is illustrative; use the visible token in the check-in mockup. Employee edits, schedule conflict checks, permissions, report exports, and authentication need backend integration before production use.
+This is a UI prototype with in-memory state. The displayed QR pattern is illustrative; use the visible token in the check-in mockup. User edits, schedule conflict checks, permissions, report exports, and authentication need backend integration before production use.
 
 ## Architecture
 

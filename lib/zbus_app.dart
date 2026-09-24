@@ -27,7 +27,7 @@ class ZBusShell extends StatefulWidget {
 class _ZBusShellState extends State<ZBusShell>
     with SingleTickerProviderStateMixin {
   SessionUser? session;
-  ZPage page = ZPage.dashboard;
+  ZPage page = ZPage.search;
   TripRecord selectedTrip = trips[2];
   String chosenOrigin = stops[0], chosenDestination = stops[2];
   ReservationRecord? selectedReservation;
@@ -69,25 +69,24 @@ class _ZBusShellState extends State<ZBusShell>
 
   List<ZPage> get nav {
     final ordered = [
-      ZPage.dashboard,
+      // User
+      ZPage.search,
+      ZPage.reservations,
+      ZPage.profile,
+      // Driver
+      ZPage.driverDay,
+      if (tripStarted) ZPage.driverTrip,
+      // Management
       ZPage.departments,
       ZPage.positions,
       ZPage.users,
-      ZPage.staff,
-      ZPage.permissions,
-      ZPage.routes,
-      ZPage.stops,
-      ZPage.schedules,
       ZPage.vehicles,
-      ZPage.assignments,
-      ZPage.drivers,
+      // Route
+      ZPage.stops,
+      ZPage.routes,
+      ZPage.schedules,
+      // Statistic
       ZPage.reports,
-      ZPage.states,
-      ZPage.search,
-      ZPage.reservations,
-      ZPage.driverDay,
-      ZPage.checkIn,
-      ZPage.profile,
     ];
     return ordered
         .where(
@@ -107,14 +106,14 @@ class _ZBusShellState extends State<ZBusShell>
   void login(SessionUser user) => setState(() {
     session = user;
     page = switch (user.role) {
-      ZRole.admin => ZPage.dashboard,
+      ZRole.admin => ZPage.users,
       ZRole.passenger => ZPage.search,
       ZRole.driver => ZPage.driverDay,
     };
   });
   void logout() => setState(() {
     session = null;
-    page = ZPage.dashboard;
+    page = ZPage.search;
     drawerOpen = false;
   });
   void selectTrip(TripRecord trip, String from, String to) {
@@ -411,72 +410,84 @@ class _SideNav extends StatelessWidget {
   final VoidCallback logout;
   final bool mobile;
 
-  static const bookingPages = {
+  static const userPages = {
     ZPage.search,
     ZPage.seats,
     ZPage.bookingCart,
     ZPage.confirmation,
     ZPage.reservations,
+    ZPage.profile,
+  };
+
+  static const driverPages = {
     ZPage.driverDay,
     ZPage.driverTrip,
     ZPage.checkIn,
     ZPage.completion,
-    ZPage.profile,
   };
+
+  static const managementPages = {
+    ZPage.departments,
+    ZPage.positions,
+    ZPage.users,
+    ZPage.vehicles,
+  };
+
+  static const routePages = {ZPage.stops, ZPage.routes, ZPage.schedules};
 
   static const statisticPages = {ZPage.reports};
 
   @override
   Widget build(BuildContext context) {
-    final booking = nav.where(bookingPages.contains).toList();
-    final management = nav
-        .where(
-          (item) =>
-              !bookingPages.contains(item) && !statisticPages.contains(item),
-        )
-        .toList();
+    final user = nav.where(userPages.contains).toList();
+    final driver = nav.where(driverPages.contains).toList();
+    final management = nav.where(managementPages.contains).toList();
+    final route = nav.where(routePages.contains).toList();
     final statistics = nav.where(statisticPages.contains).toList();
-    final itemNumbers = {
-      for (final entry in nav.asMap().entries) entry.value: entry.key + 1,
-    };
 
     Widget section(String title, List<ZPage> items) => Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         ZLabel(title, color: ZColors.accent),
         const SizedBox(height: 8),
-        for (final item in items)
+        for (final entry in items.asMap().entries)
           Column(
             children: [
               InkWell(
-                onTap: () => go(item),
+                onTap: () => go(entry.value),
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(
                     vertical: 14,
                     horizontal: 9,
                   ),
-                  color: page == item ? ZColors.surface2 : Colors.transparent,
+                  color: page == entry.value
+                      ? ZColors.surface2
+                      : Colors.transparent,
                   child: Row(
                     children: [
                       Text(
-                        itemNumbers[item]!.toString().padLeft(2, '0'),
+                        (entry.key + 1).toString().padLeft(2, '0'),
                         style: ZTheme.mono(
                           10,
-                          color: page == item ? ZColors.accent : ZColors.muted,
+                          color: page == entry.value
+                              ? ZColors.accent
+                              : ZColors.muted,
                         ),
                       ),
                       const SizedBox(width: 15),
                       Expanded(
                         child: Text(
-                          item.label.toUpperCase(),
+                          entry.value.label.toUpperCase(),
                           style: ZTheme.mono(
                             11,
-                            color: page == item ? ZColors.ink : ZColors.muted,
+                            color: page == entry.value
+                                ? ZColors.ink
+                                : ZColors.muted,
                           ),
                         ),
                       ),
-                      if (page == item)
+                      if (page == entry.value)
                         const Icon(
                           Icons.arrow_forward,
                           size: 14,
@@ -508,9 +519,11 @@ class _SideNav extends StatelessWidget {
           Expanded(
             child: ListView(
               children: [
-                section('01 / BOOKING & ACCOUNT', booking),
-                section('02 / MANAGEMENT', management),
-                section('03 / STATISTICS', statistics),
+                section('01 / USER', user),
+                section('02 / DRIVER', driver),
+                section('03 / MANAGEMENT', management),
+                section('04 / ROUTE', route),
+                section('05 / STATISTIC', statistics),
               ],
             ),
           ),
@@ -552,7 +565,7 @@ class _BottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = switch (role) {
-      ZRole.admin => [ZPage.dashboard, ZPage.schedules, ZPage.reports],
+      ZRole.admin => [ZPage.users, ZPage.schedules, ZPage.reports],
       ZRole.passenger => [ZPage.search, ZPage.reservations, ZPage.profile],
       ZRole.driver => [ZPage.driverDay, ZPage.checkIn, ZPage.profile],
     };
@@ -574,7 +587,7 @@ class _BottomNav extends StatelessWidget {
                     children: [
                       Icon(
                         switch (item) {
-                          ZPage.dashboard => Icons.grid_view_outlined,
+                          ZPage.users => Icons.people_outline,
                           ZPage.schedules => Icons.schedule,
                           ZPage.reports => Icons.bar_chart,
                           ZPage.search => Icons.search,
@@ -635,8 +648,8 @@ class _LoginState extends State<_Login> {
   final password = TextEditingController();
   final firstName = TextEditingController();
   final lastName = TextEditingController();
-  String registrationDepartment = 'D0007 / Computer Science';
-  String registrationPosition = 'P0002 / Student';
+  String registrationDepartment = 'PD001 / Technology';
+  String registrationPosition = 'PP001 / Student';
   @override
   void dispose() {
     email.dispose();
@@ -772,12 +785,12 @@ class _LoginState extends State<_Login> {
                             'Department ID',
                             value: registrationDepartment,
                             items: const [
-                              'D0005 / Staff',
-                              'D0006 / Civil Engineering',
-                              'D0007 / Computer Science',
-                              'D0008 / Multimedia',
-                              'D0009 / Architecture',
-                              'D0010 / Business',
+                              'PD001 / Technology',
+                              'PD002 / Computer Science',
+                              'PD003 / Civil Engineering',
+                              'PD004 / Multimedia',
+                              'PD005 / Architecture',
+                              'PD006 / Business',
                             ],
                             onChanged: (value) => setState(() {
                               registrationDepartment =
@@ -789,10 +802,10 @@ class _LoginState extends State<_Login> {
                             'Position ID',
                             value: registrationPosition,
                             items: const [
-                              'P0002 / Student',
-                              'P0003 / Teaching Assistant',
-                              'P0004 / Teacher',
-                              'P0010 / Guest',
+                              'PP001 / Student',
+                              'PP002 / Teaching Assistant',
+                              'PP003 / Teacher',
+                              'PP004 / Guest',
                             ],
                             onChanged: (value) => setState(() {
                               registrationPosition =

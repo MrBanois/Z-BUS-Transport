@@ -21,13 +21,13 @@ void main() {
     expect(find.text('FIND DEPARTURES'), findsOneWidget);
     await tester.tap(find.text('MORE'));
     await tester.pumpAndSettle();
-    expect(find.text('01 / BOOKING & ACCOUNT'), findsOneWidget);
+    expect(find.text('01 / USER'), findsOneWidget);
     await tester.scrollUntilVisible(
-      find.text('02 / MANAGEMENT'),
+      find.text('02 / DRIVER'),
       300,
       scrollable: find.byType(Scrollable).last,
     );
-    expect(find.text('02 / MANAGEMENT'), findsOneWidget);
+    expect(find.text('02 / DRIVER'), findsOneWidget);
   });
 
   testWidgets('Passenger can reserve a seat and see a pass', (tester) async {
@@ -91,8 +91,8 @@ void main() {
     await tester.tap(find.text('ENTER ZBUS'));
     await tester.pumpAndSettle();
     expect(find.text('MY DRIVING\nSCHEDULE.'), findsOneWidget);
-    await tester.ensureVisible(find.text('START TRIP'));
-    await tester.tap(find.text('START TRIP'));
+    await tester.ensureVisible(find.text('START TRIP').first);
+    await tester.tap(find.text('START TRIP').first);
     await tester.pumpAndSettle();
     expect(find.text('EVERY STOP\nCOUNTS.'), findsOneWidget);
     expect(find.text('John Passenger'), findsOneWidget);
@@ -120,9 +120,12 @@ void main() {
     await tester.ensureVisible(find.text('ENTER ZBUS'));
     await tester.tap(find.text('ENTER ZBUS'));
     await tester.pumpAndSettle();
-    expect(find.text('THE NETWORK\nAT A GLANCE.'), findsOneWidget);
-    await tester.ensureVisible(find.text('MANAGE ROUTES'));
-    await tester.drag(find.byType(ListView), const Offset(0, -250));
+    expect(find.text('ONE USER TABLE.\nEVERY PERSON.'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('MANAGE ROUTES'),
+      400,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('MANAGE ROUTES'));
     await tester.pumpAndSettle();

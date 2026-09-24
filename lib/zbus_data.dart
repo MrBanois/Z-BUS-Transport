@@ -27,18 +27,13 @@ enum ReservationStatus {
 }
 
 enum ZPage {
-  dashboard,
   departments,
   positions,
   users,
-  staff,
-  permissions,
   routes,
   stops,
   schedules,
   vehicles,
-  assignments,
-  drivers,
   search,
   seats,
   bookingCart,
@@ -50,23 +45,17 @@ enum ZPage {
   completion,
   reports,
   profile,
-  states,
 }
 
 extension ZPageInfo on ZPage {
   String get label => switch (this) {
-    ZPage.dashboard => 'Operations overview',
     ZPage.departments => 'Manage departments',
     ZPage.positions => 'Manage positions',
     ZPage.users => 'Manage users',
-    ZPage.staff => 'Manage employees',
-    ZPage.permissions => 'Manage access',
     ZPage.routes => 'Manage routes',
     ZPage.stops => 'Manage stations',
     ZPage.schedules => 'Manage schedules',
     ZPage.vehicles => 'Manage vehicles',
-    ZPage.assignments => 'Manage assignments',
-    ZPage.drivers => 'Manage drivers',
     ZPage.search => 'Find a trip',
     ZPage.seats => 'Reserve seats',
     ZPage.bookingCart => 'Booking cart',
@@ -78,7 +67,6 @@ extension ZPageInfo on ZPage {
     ZPage.completion => 'Completed trip',
     ZPage.reports => 'Statistic reports',
     ZPage.profile => 'My account',
-    ZPage.states => 'UI states',
   };
 }
 
