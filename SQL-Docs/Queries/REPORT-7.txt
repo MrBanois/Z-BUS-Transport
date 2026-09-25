@@ -1,0 +1,15 @@
+SELECT
+    VT."NAME" AS "TYPE",
+    V."PLATE_NO" AS "PLATE_NO",
+    V."SEAT",
+    COUNT(V."ID") AS "SCHEDULES"
+FROM
+    "SCHEDULE" S
+    JOIN "VEHICLE" V
+        ON S."VEHICLE" = V."ID"
+    JOIN "VEHICLE_TYPE" VT
+        ON V."TYPE" = VT."ID"
+GROUP BY
+    VT."NAME", V."PLATE_NO", V."SEAT"
+ORDER BY
+    V."SEAT";
