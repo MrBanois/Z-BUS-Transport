@@ -1,11 +1,11 @@
 # Download Things (Oracle Database Free)
-docker pull container-registry.oracle.com/database/free:latest-lite
+docker pull gvenzl/oracle-free:slim
 
 # Create persistent volume
 docker volume create OracleDBData
 
 # Run The Thing
-docker run -d --name oracle-db -p 1521:1521 -e ORACLE_PWD="Admin" -v OracleDBData:/opt/oracle/oradata container-registry.oracle.com/database/free:latest-lite
+docker run -d --name oracle-db -p 1521:1521 -e ORACLE_PASSWORD="Admin" -v OracleDBData:/opt/oracle/oradata gvenzl/oracle-free:slim
 
 # Read Logs (Optional)
 docker logs -f oracle-db
@@ -28,6 +28,7 @@ GRANT CREATE MATERIALIZED VIEW TO DEV;
 CREATE USER Nope IDENTIFIED BY "Koi";
 GRANT DEV TO Nope;
 ALTER USER Nope QUOTA UNLIMITED ON SYSTEM;
+ALTER USER Nope QUOTA UNLIMITED ON USERS;
 
 #SQL Developer
 Name 		: LocalDB
