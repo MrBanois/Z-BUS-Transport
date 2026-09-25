@@ -1,0 +1,66 @@
+SELECT
+    s.id AS station_id,
+    s.name AS "Station",
+    m.month_no,
+    TO_CHAR(TO_DATE(m.month_no, 'MM'), 'Month') AS "Date_Month",
+    NVL(x.pickup_count, 0) AS "Pickup",
+    NVL(x.dropoff_count, 0) AS "Dropoff"
+
+FROM station s
+
+CROSS JOIN (
+    SELECT LEVEL AS month_no
+    FROM dual
+    CONNECT BY LEVEL <= 12
+) m
+
+LEFT JOIN (
+    SELECT
+        rds.station AS station_id,
+        EXTRACT(MONTH FROM b."DATE") AS month_no,
+        COUNT(rds.station) AS pickup_count,
+        COUNT(rde.station) AS dropoff_count
+
+    FROM booking b
+
+    JOIN booking_detail bd
+        ON b.booking_id = bd.bid
+
+    JOIN schedule sch
+        ON bd.route = sch.rid
+       AND bd.schedule = sch.trip_no
+
+    JOIN route r
+        ON r.id = sch.rid
+
+    JOIN route_detail rds
+        ON bd.srid = rds.rid
+       AND bd.startno = rds.station_no
+
+    JOIN route_detail rde
+        ON bd.erid = rde.rid
+       AND bd.endno = rde.station_no
+
+    JOIN station ss
+        ON rds.station = ss.id
+
+    JOIN station es
+        ON rde.station = es.id
+
+    JOIN status st
+        ON bd.current_status = st.id
+
+    WHERE
+        b."DATE" >= DATE '2025-01-01'
+        AND b."DATE" < DATE '2026-01-01'
+
+    GROUP BY
+        rds.station,
+        EXTRACT(MONTH FROM b."DATE")
+) x
+    ON x.station_id = s.id
+   AND x.month_no = m.month_no
+
+ORDER BY
+    s.id,
+    m.month_no;
