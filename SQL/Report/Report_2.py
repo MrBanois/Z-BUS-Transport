@@ -3,6 +3,7 @@ import getpass
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import json
 
 username = input("Enter Username : ")
 userpwd = getpass.getpass(f"Enter password : ")
@@ -53,6 +54,7 @@ with oracledb.connect(f'{username}/{userpwd}@{host}:{port}/{service_name}') as c
         for _ in query : 
             rep1.loc[len(rep1)] = _
 
+# Generate and display the graph
 x = np.arange(len(rep1))
 width = 0.2
 
@@ -70,7 +72,7 @@ ax.set_ylabel("Seats")
 
 if Year_Range == '1' :
     ax.set_title(f"Year {year_s}\nCheck-in / Cancelled / No Show (Clustered)")
-else : 
+else :
     ax.set_title(f"Year {year_s} - {int(year_s) + int(Year_Range) - 1}\nCheck-in / Cancelled / No Show (Clustered)")
 
 ax.grid(axis="y", alpha=0.4)
@@ -79,3 +81,14 @@ ax.legend()
 
 plt.tight_layout()
 plt.show()
+
+# Convert DataFrame to dictionary for JSON output
+data = {
+    "report_title": "Booking Statistics",
+    "year_range": f"{year_s} to {int(year_s) + int(Year_Range) - 1}",
+    "data": rep1.to_dict(orient='records')
+}
+print(json.dumps(data, indent=2, default=str))
+# Uncomment the line below to return JSON via API instead of printing
+# print(json.dumps(data, indent=2, default=str).encode('utf-8'))
+
