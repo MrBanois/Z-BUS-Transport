@@ -1,12 +1,15 @@
 from fastapi import FastAPI, HTTPException
-from typing import List
 import hashlib
-import os
 
+#DB Functions
 from Connect_DB import get_db_connection
-from schemas import Userdata
+
+#CRUDS
+from CRUD.Position import router as pos_router
 
 app = FastAPI()
+
+app.include_router(pos_router, prefix="/api", tags=["Permissions"])
 
 def verify_password(passwd : str, db_pass : str) :
     return hashlib.md5(passwd.encode()).hexdigest() == db_pass
