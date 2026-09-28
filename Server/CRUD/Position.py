@@ -23,7 +23,7 @@ router = APIRouter()
 # Helper Functions
 # =============================================================================
 
-def _generatePosID(connection: Connection) -> str:
+def _generatePosID(connection: Connection) -> str :
     """
     Generate a new unique position ID for a position record.
     
@@ -54,7 +54,7 @@ def _generatePosID(connection: Connection) -> str:
         return f"P{next_num:04d}"
 
 @router.get("/position", response_model=List[Position])
-def get_position():
+def get_position() -> List[Position] :
     """
     GET all positions from the database.
     
@@ -105,7 +105,7 @@ def get_position():
 
 #From Z-Bus mockup there should be 16 permissions
 @router.post("/position", response_model=StandardResponse)
-def create_position(name: str, perms: str) -> StandardResponse:
+def create_position(name: str, perms: str) -> StandardResponse :
     """
     POST Create a new position record.
     
@@ -229,8 +229,8 @@ def update_position(id: str, name: str, perms: str) -> StandardResponse :
         if conn:
             conn.close()
 
-@router.delete("/position/{id}")
-def delete_position(id: str) :
+@router.delete("/position/{id}", response_model=StandardResponse)
+def delete_position(id: str) -> StandardResponse :
     """
     DELETE Remove a position record from the database.
     
