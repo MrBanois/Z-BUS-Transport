@@ -5,11 +5,15 @@ import hashlib
 from Connect_DB import get_db_connection
 
 #CRUDS
+from CRUD.Department import router as dep_router
 from CRUD.Position import router as pos_router
+from CRUD.User import router as user_router
 
 app = FastAPI()
 
 app.include_router(pos_router, prefix="/api", tags=["Permissions"])
+app.include_router(user_router, prefix="/api", tags=["Users"])
+app.include_router(dep_router, prefix="/api", tags=["Departments"])
 
 def verify_password(passwd : str, db_pass : str) :
     return hashlib.md5(passwd.encode()).hexdigest() == db_pass
