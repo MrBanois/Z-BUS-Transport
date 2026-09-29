@@ -1,4 +1,8 @@
 --UI side must process this data into final report
+SELECT "ID","NAME"
+FROM "ROUTE"
+WHERE "IS_ACTIVE" = 'T'
+ORDER BY "ID";
 --Route list must be pulled seperately
 
 --Idea 1 minimal returns

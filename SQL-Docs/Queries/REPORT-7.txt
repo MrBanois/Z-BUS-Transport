@@ -1,18 +1,22 @@
 SELECT
-    VT."NAME" AS "TYPE",
-    V."PLATE_NO" AS "PLATE_NO",
+    VT."NAME" AS "VEHICLE_TYPE",
+    V."PLATE_NO",
     V."SEAT",
-    COUNT(V."ID") AS "SCHEDULES"
-FROM
-    "SCHEDULE" S
+    COUNT(TL."LOG_ID") AS "TRIPS"
+FROM 
+    "VEHICLE_TYPE" VT
     JOIN "VEHICLE" V
-        ON S."VEHICLE" = V."ID"
-    JOIN "VEHICLE_TYPE" VT
         ON V."TYPE" = VT."ID"
-WHERE
-    S."TIME_START" >= DATE '2025-04-12'
-    AND S."TIME_START" < DATE '2025-04-15'
+    LEFT JOIN "TRIP_LOG" TL
+        ON TL."VEHICLE" = V."ID"
+            AND TL."DATE" >= DATE '2025-04-01'
+            AND TL."DATE" < DATE '2025-05-01'
 GROUP BY
-    VT."NAME", V."PLATE_NO", V."SEAT"
+    VT."ID",
+    VT."NAME",
+    V."ID",
+    V."SEAT",
+    V."PLATE_NO"
 ORDER BY
-    V."SEAT";
+    VT."ID",
+    V."ID";

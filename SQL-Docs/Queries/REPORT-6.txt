@@ -1,0 +1,29 @@
+SELECT
+    TL."DRIVER" AS "DRIVER_ID",
+    U."F_NAME" || ' ' || U."L_NAME" AS "DRIVER",
+    COUNT(*) AS "TOTAL",
+    SUM(
+        CASE
+            WHEN TO_CHAR(TL."TIME_START", 'HH24:MI:SS') < '17:00:00'
+            THEN 1 ELSE 0
+        END
+    ) AS "BEFORE_17",
+    SUM(
+        CASE
+            WHEN TO_CHAR(TL."TIME_START", 'HH24:MI:SS') >= '17:00:00'
+            THEN 1 ELSE 0
+        END
+    ) AS "AFTER_17"
+FROM
+    "TRIP_LOG" TL
+    JOIN "USER" U
+        ON TL."DRIVER" = U."ID"
+WHERE
+    TL."DATE" >= DATE '2025-04-01'
+    AND TL."DATE" < DATE '2025-05-01'
+GROUP BY
+    TL."DRIVER",
+    U."F_NAME",
+    U."L_NAME"
+ORDER BY
+    TL."DRIVER";
