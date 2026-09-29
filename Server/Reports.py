@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from Connect_DB import get_db_connection
+from datetime import datetime
 from schemas import Report
 
 import pandas as pd
@@ -21,8 +22,7 @@ def generate_report_2(year : int, range : int) -> Report : # 2024, 2
         
         cursor = conn.cursor()
         report = pd.DataFrame(columns=["Month", "Bookings", "Seats", "Cancelled", "Checked-In", "No-Show"])
-        
-        query = cursor.execute(f'''
+        sql = '''
             SELECT
                 TO_CHAR(M.MONTH_DATE, 'FMMonth') AS "Month",
                 COUNT(BD."BID") AS "Booking Count",
@@ -40,23 +40,32 @@ def generate_report_2(year : int, range : int) -> Report : # 2024, 2
                     ELSE 0
                 END), 0) AS "No-Show"
             FROM (
-                    SELECT LEVEL AS MONTH_NO,
-                           ADD_MONTHS(DATE '2025-01-01', LEVEL - 1) AS MONTH_DATE
-                    FROM DUAL
-                    CONNECT BY LEVEL <= 12
-                ) M
-                LEFT JOIN "BOOKING" B
-                    ON EXTRACT(MONTH FROM B."DATE") = M.MONTH_NO
-                   AND B."DATE" >= DATE '{year}-01-01'
-                   AND B."DATE" <  DATE '{int(year) + int(range)}-01-01'
-                LEFT JOIN "BOOKING_DETAIL" BD
-                    ON B."BOOKING_ID" = BD."BID"
+                SELECT LEVEL AS MONTH_NO,
+                       ADD_MONTHS(DATE '2025-01-01', LEVEL - 1) AS MONTH_DATE
+                FROM DUAL
+                CONNECT BY LEVEL <= 12
+            ) M
+            LEFT JOIN "BOOKING" B
+                ON EXTRACT(MONTH FROM B."DATE") = M.MONTH_NO
+               AND B."DATE" >= :start_date
+               AND B."DATE" < :end_date
+            LEFT JOIN "BOOKING_DETAIL" BD
+                ON B."BOOKING_ID" = BD."BID"
             GROUP BY
                 M.MONTH_NO,
                 M.MONTH_DATE
             ORDER BY
-                M.MONTH_NO''')
-        
+                M.MONTH_NO
+        '''
+
+        start_date = datetime(year, 1, 1)
+        end_date = datetime(year + range, 1, 1)
+
+        query = cursor.execute(
+            sql,
+            start_date=start_date,
+            end_date=end_date
+        )
         for _ in query : 
             report.loc[len(report)] = _
 
@@ -79,7 +88,7 @@ def generate_report_2(year : int, range : int) -> Report : # 2024, 2
             conn.close()
 
 @router.post("/report3", response_model=Report) # 2025-04-12, 2025-04-16
-def generate_report_3(start_date : str, end_date : str) -> Report :
+def generate_report_3(start_date : datetime, end_date : datetime) -> Report :
     conn = None
     cursor = None
     try :
@@ -90,7 +99,7 @@ def generate_report_3(start_date : str, end_date : str) -> Report :
         cursor = conn.cursor()
         report = pd.DataFrame(columns=["User", "Bookings", "Checked-In", "Cancelled", "No-Show"])
 
-        query = cursor.execute(f'''
+        sql = '''
             SELECT 
                 US."F_NAME" || ' ' || US."L_NAME" AS "User",
                 COUNT(BD."BID") AS "Bookings",
@@ -102,9 +111,14 @@ def generate_report_3(start_date : str, end_date : str) -> Report :
                 JOIN "BOOKING_DETAIL" BD ON B."BOOKING_ID" = BD.BID
                 JOIN "USER" US ON B."USER" = US."ID"
             WHERE
-                B."DATE" BETWEEN DATE '{start_date}' AND DATE '{end_date}'
+                B."DATE" BETWEEN :start_date AND :end_date
             GROUP BY US."F_NAME", US."L_NAME"
-        ''')
+        '''
+        query = cursor.execute(
+            sql,
+            start_date=start_date,
+            end_date=end_date
+        )
         
         for _ in query : 
             report.loc[len(report)] = _
