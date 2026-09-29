@@ -71,7 +71,7 @@ def create_department(name: str) -> StandardResponse :
         cursor = conn.cursor()
 
         # Insert the position
-        sql = f'''INSERT INTO "DEPARTMENT" ("ID", "NAME")
+        sql = '''INSERT INTO "DEPARTMENT" ("ID", "NAME")
                    VALUES (:autogen, :name)'''
         cursor.execute(sql, [autogen_id, name.strip()])
         conn.commit()
@@ -105,7 +105,7 @@ def update_department(id: str, name: str) -> StandardResponse :
         cursor = conn.cursor()
 
         # Update the position
-        sql = f'''UPDATE "DEPARTMENT" SET "NAME" = :name WHERE "ID" = :id'''
+        sql = '''UPDATE "DEPARTMENT" SET "NAME" = :name WHERE "ID" = :id'''
         cursor.execute(sql, [name.strip(), id.strip()])
         conn.commit()
 
@@ -138,7 +138,7 @@ def delete_department(id: str) -> StandardResponse :
         cursor = conn.cursor()
 
         # Delete the department
-        sql = f'''DELETE FROM "DEPARTMENT" WHERE ID = :id'''
+        sql = '''DELETE FROM "DEPARTMENT" WHERE ID = :id'''
         cursor.execute(sql, [id.strip()])
         conn.commit()
 

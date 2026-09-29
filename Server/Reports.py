@@ -319,11 +319,11 @@ def generate_report_4(start_date : datetime, end_date : datetime) -> Report : # 
         routes : list[str] = []
         days = [ "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
-        query = cursor.execute(f'''
-        SELECT "ID"
-        FROM "ROUTE"
-        WHERE "IS_ACTIVE" = 'T'
-        ORDER BY "ID"
+        query = cursor.execute('''
+            SELECT "ID"
+            FROM "ROUTE"
+            WHERE "IS_ACTIVE" = 'T'
+            ORDER BY "ID"
         ''')
         for _ in query :
             routes.append(_[0])

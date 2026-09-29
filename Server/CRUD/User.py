@@ -176,7 +176,7 @@ def update_user(id : str, f_name : str, l_name : str, email : str,
         cursor = conn.cursor()
 
         # Update the data
-        sql = f'''
+        sql = '''
         UPDATE "USER" SET 
             "F_NAME" = :fname, "L_NAME" = :lname,
             "EMAIL" = :mail, "PASSWORD" = :pass,
@@ -218,7 +218,7 @@ def delete_user(id : str) :
         cursor = conn.cursor()
 
         # Delete the position
-        sql = f'''DELETE FROM "USER" WHERE ID = :id'''
+        sql = '''DELETE FROM "USER" WHERE ID = :id'''
         cursor.execute(sql, [id.strip()])
         conn.commit()
 

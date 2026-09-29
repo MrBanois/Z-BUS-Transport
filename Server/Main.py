@@ -7,6 +7,7 @@ from Connect_DB import get_db_connection
 #CRUDS
 from CRUD.Department import router as dep_router
 from CRUD.Position import router as pos_router
+from CRUD.Route import router as route_router
 from CRUD.User import router as user_router
 
 #Report
@@ -18,6 +19,7 @@ app = FastAPI()
 app.include_router(pos_router, prefix="/api", tags=["Permissions"])
 app.include_router(user_router, prefix="/api", tags=["Users"])
 app.include_router(dep_router, prefix="/api", tags=["Departments"])
+app.include_router(route_router, prefix="/api", tags=["Routes"])
 
 #Report API
 app.include_router(report_router, prefix="/api", tags=["Report"])

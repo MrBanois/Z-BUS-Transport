@@ -1,10 +1,12 @@
 ==========================================
 Response Structure
 ==========================================
-/api                    (get)
+/api                    (GET)
     message : API is running
 
-/api/login              (post)
+==========================================
+
+/api/login              (POST)
     message : Login successful
     user :
         id : id
@@ -14,27 +16,27 @@ Response Structure
 
 ==========================================
 
-/api/position           (get)
+/api/position           (GET)
     List[Position]
         id: str
         name: str
         permission: str
 
-/api/position           (post)
+/api/position           (POST)
     msg: str
     info: str
 
-/api/position/{id}      (put)
+/api/position/{id}      (PUT)
     msg: str
     info: str
 
-/api/position/{id}      (delete)
+/api/position/{id}      (DELETE)
     msg: str
     info: str
 
 ==========================================
 
-/api/user               (get)
+/api/user               (GET)
     List[Userdata]
         id: str
         f_name: str
@@ -46,7 +48,7 @@ Response Structure
         isemp: bool
         salary: float
 
-/api/user-linked        (get)
+/api/user-linked        (GET)
     List[Userdata]
         id: str
         f_name: str
@@ -58,97 +60,75 @@ Response Structure
         isemp: bool
         salary: float
 
-/api/user               (post)
+/api/user               (POST)
     msg: str
     info: str
 
-/api/user/{id}          (put)
+/api/user/{id}          (PUT)
     msg: str
     info: str
 
-/api/user/{id}          (delete)
-    msg: str
-    info: str
-
-==========================================
-
-/api/department         (get)
-    id: str
-    name: str
-
-/api/department         (post)
-    msg: str
-    info: str
-
-/api/department/{id}    (put)
-    msg: str
-    info: str
-
-/api/department/{id}    (delete)
+/api/user/{id}          (DELETE)
     msg: str
     info: str
 
 ==========================================
 
-/api/report1            (post)
+/api/department         (GET)
+    List[Department]
+        id: str
+        name: str
+
+/api/department         (POST)
+    msg: str
+    info: str
+
+/api/department/{id}    (PUT)
+    msg: str
+    info: str
+
+/api/department/{id}    (DELETE)
+    msg: str
+    info: str
+
+==========================================
+
+/api/route              (GET)
+    List[Route]
+        id: str
+        name: str
+        is_active: bool
+
+==========================================
+
+/api/report1            (POST)
     report_title: str
     date_range: str
     data: list[dict]
 
-/api/report2            (post)
-    report_title: str
-    date_range: str
-    data: list[
-        {
-            "Month": "January",
-            "Bookings": 0,
-            "Seats": 0,
-            "Cancelled": 0,
-            "Checked-In": 0,
-            "No-Show": 0
-        },
-        {
-            ...
-        },
-        {
-            "Month": "December",
-            "Bookings": 0,
-            "Seats": 0,
-            "Cancelled": 0,
-            "Checked-In": 0,
-            "No-Show": 0
-        }
-    ]
-
-/api/report3            (post)
-    report_title: str
-    date_range: str
-    data: list[
-        {
-            "User": "Student One",
-            "Bookings": 2,
-            "Checked-In": 1,
-            "Cancelled": 1,
-            "No-Show": 0
-        },
-        {
-            ...
-        },
-        {
-            "User": N,
-            "Bookings": W,
-            "Checked-In": X,
-            "Cancelled": Y,
-            "No-Show": Z
-        }
-    ]
-
-/api/report4            (post)
+/api/report2            (POST)
     report_title: str
     date_range: str
     data: list[dict]
 
-/api/report7            (post)
+/api/report3            (POST)
     report_title: str
     date_range: str
     data: list[dict]
+
+/api/report4            (POST)
+    report_title: str
+    date_range: str
+    data: list[dict]
+
+/api/report6            (POST)
+    report_title: str
+    date_range: str
+    data: list[dict]
+
+/api/report7            (POST)
+    report_title: str
+    date_range: str
+    data: list[dict]
+
+==========================================

@@ -146,7 +146,7 @@ def create_position(name: str, perms: str) -> StandardResponse :
             raise HTTPException(status_code=400, detail="Permission string cannot be empty")
 
         # Insert the position
-        sql = f'''INSERT INTO "POSITION" ("ID", "NAME", "PERMISSION")
+        sql = '''INSERT INTO "POSITION" ("ID", "NAME", "PERMISSION")
                    VALUES (:autogen, :name, :perms)'''
         cursor.execute(sql, [autogen_id, name.strip(), perms.strip()])
         conn.commit()
@@ -208,7 +208,7 @@ def update_position(id: str, name: str, perms: str) -> StandardResponse :
             raise HTTPException(status_code=400, detail="Permission string cannot be empty")
 
         # Update the position
-        sql = f'''UPDATE "POSITION" SET "NAME" = :name, "PERMISSION" = :perm WHERE "ID" = :id'''
+        sql = '''UPDATE "POSITION" SET "NAME" = :name, "PERMISSION" = :perm WHERE "ID" = :id'''
         cursor.execute(sql, [name.strip(), perms.strip(), id.strip()])
         conn.commit()
 
@@ -259,7 +259,7 @@ def delete_position(id: str) -> StandardResponse :
         cursor = conn.cursor()
 
         # Delete the position
-        sql = f'''DELETE FROM "POSITION" WHERE ID = :id'''
+        sql = '''DELETE FROM "POSITION" WHERE ID = :id'''
         cursor.execute(sql, [id.strip()])
         conn.commit()
 
