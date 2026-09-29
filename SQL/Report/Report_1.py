@@ -85,9 +85,42 @@ with oracledb.connect(f'{username}/{userpwd}@{host}:{port}/{service_name}') as c
         ''')
         for _ in query : 
             rep1.loc[len(rep1)] = _
+
+# print(json.dumps(data, indent=2, default=str))
+# print(rep1)
+
+df = rep1.sort_values('month_no')
+
+# 2. Create the Pivot Table
+df_wide = df.pivot_table(
+    index=['station_id', 'Station'], 
+    columns='Date_Month', 
+    values=['Pickup', 'Dropoff']
+)
+
+# 3. SWAP LEVELS: Move Month to Level 0 and Metric to Level 1
+df_wide = df_wide.swaplevel(0, 1, axis=1)
+
+# 4. FIX THE ORDER: 
+# Sort Level 1 (Metric) in DESCENDING order so 'Pickup' (P) comes before 'Dropoff' (D)
+df_wide = df_wide.sort_index(axis=1, level=1, ascending=False)
+
+# 5. REINDEX MONTHS: Ensure months follow the chronological order (Jan, Feb, Mar...)
+month_order = df['Date_Month'].unique()
+df_wide = df_wide.reindex(columns=month_order, level=0)
+
+# 6. FLATTEN COLUMNS: Combine them into 'Pickup_January', 'Dropoff_January', etc.
+# Note: Since we swapped levels, 'col[0]' is Month and 'col[1]' is Metric
+df_wide.columns = [f'{col[1]}_{col[0]}' for col in df_wide.columns]
+
+# 7. CLEANUP
+df_wide = df_wide.reset_index()
+
 data = {
     "report_title": "Booking Statistics",
     "year_range": f"{year_s} to {int(year_s) + int(Year_Range) - 1}",
-    "data": rep1.to_dict(orient='records')
+    "data": df_wide.to_dict(orient='records')
 }
+# Display result
+# print(df_wide.head())
 print(json.dumps(data, indent=2, default=str))
