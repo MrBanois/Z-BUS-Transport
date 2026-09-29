@@ -49,7 +49,7 @@ with oracledb.connect(f'{username}/{userpwd}@{host}:{port}/{service_name}') as c
             rep6.loc[len(rep6)] = _
 
         data = {
-            "report_title": "Booking Statistics",
+            "report_title": "Late Trip Statistics",
             "year_range": f"{start_date} to {end_date}",
             "data": rep6.to_dict(orient='records')
         }

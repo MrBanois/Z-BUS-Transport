@@ -117,7 +117,7 @@ df_wide.columns = [f'{col[1]}_{col[0]}' for col in df_wide.columns]
 df_wide = df_wide.reset_index()
 
 data = {
-    "report_title": "Booking Statistics",
+    "report_title": "Station Statistics",
     "year_range": f"{year_s} to {int(year_s) + int(Year_Range) - 1}",
     "data": df_wide.to_dict(orient='records')
 }
