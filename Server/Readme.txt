@@ -7,7 +7,7 @@ What matters
         USER
         PERMISSIONS (Positions.py)
         DEPARTMENT (Department.py)
-    REPORT
+    REPORT (Reports.py)
         REPORT-1
         REPORT-2
         REPORT-3

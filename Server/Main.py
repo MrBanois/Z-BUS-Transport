@@ -9,11 +9,18 @@ from CRUD.Department import router as dep_router
 from CRUD.Position import router as pos_router
 from CRUD.User import router as user_router
 
+#Report
+from Reports import router as report_router
+
 app = FastAPI()
 
+#CRUD API
 app.include_router(pos_router, prefix="/api", tags=["Permissions"])
 app.include_router(user_router, prefix="/api", tags=["Users"])
 app.include_router(dep_router, prefix="/api", tags=["Departments"])
+
+#Report API
+app.include_router(report_router, prefix="/api", tags=["Report"])
 
 def verify_password(passwd : str, db_pass : str) :
     return hashlib.md5(passwd.encode()).hexdigest() == db_pass
@@ -22,7 +29,7 @@ def verify_password(passwd : str, db_pass : str) :
 def Root() :
     return {"message" : "API is running "}
 
-@app.post("/apt/login")
+@app.post("/api/login")
 def Login(user : str, passwd : str) :
     conn = None
     cursor = None
@@ -64,7 +71,7 @@ def Login(user : str, passwd : str) :
                 "name": f"{f_name} {l_name}",
                 "email": db_email,
                 "permission": perms
-      }
+            }
         }
 
     except HTTPException as he:

@@ -1,0 +1,154 @@
+==========================================
+Response Structure
+==========================================
+/api                    (get)
+    message : API is running
+
+/api/login              (post)
+    message : Login successful
+    user :
+        id : id
+        name : name + lname
+        email : db_email
+        permission : perms
+
+==========================================
+
+/api/position           (get)
+    List[Position]
+        id: str
+        name: str
+        permission: str
+
+/api/position           (post)
+    msg: str
+    info: str
+
+/api/position/{id}      (put)
+    msg: str
+    info: str
+
+/api/position/{id}      (delete)
+    msg: str
+    info: str
+
+==========================================
+
+/api/user               (get)
+    List[Userdata]
+        id: str
+        f_name: str
+        l_name: str
+        email: str
+        passwd: str
+        pos: str        (Position ID)
+        dep: str        (Department ID)
+        isemp: bool
+        salary: float
+
+/api/user-linked        (get)
+    List[Userdata]
+        id: str
+        f_name: str
+        l_name: str
+        email: str
+        passwd: str
+        pos: str        (Position name)
+        dep: str        (Department name)
+        isemp: bool
+        salary: float
+
+/api/user               (post)
+    msg: str
+    info: str
+
+/api/user/{id}          (put)
+    msg: str
+    info: str
+
+/api/user/{id}          (delete)
+    msg: str
+    info: str
+
+==========================================
+
+/api/department         (get)
+    id: str
+    name: str
+
+/api/department         (post)
+    msg: str
+    info: str
+
+/api/department/{id}    (put)
+    msg: str
+    info: str
+
+/api/department/{id}    (delete)
+    msg: str
+    info: str
+
+==========================================
+
+/api/report1            (post)
+    report_title: str
+    date_range: str
+    data: list[dict]
+
+/api/report2            (post)
+    report_title: str
+    date_range: str
+    data: list[
+        {
+            "Month": "January",
+            "Bookings": 0,
+            "Seats": 0,
+            "Cancelled": 0,
+            "Checked-In": 0,
+            "No-Show": 0
+        },
+        {
+            ...
+        },
+        {
+            "Month": "December",
+            "Bookings": 0,
+            "Seats": 0,
+            "Cancelled": 0,
+            "Checked-In": 0,
+            "No-Show": 0
+        }
+    ]
+
+/api/report3            (post)
+    report_title: str
+    date_range: str
+    data: list[
+        {
+            "User": "Student One",
+            "Bookings": 2,
+            "Checked-In": 1,
+            "Cancelled": 1,
+            "No-Show": 0
+        },
+        {
+            ...
+        },
+        {
+            "User": N,
+            "Bookings": W,
+            "Checked-In": X,
+            "Cancelled": Y,
+            "No-Show": Z
+        }
+    ]
+
+/api/report4            (post)
+    report_title: str
+    date_range: str
+    data: list[dict]
+
+/api/report7            (post)
+    report_title: str
+    date_range: str
+    data: list[dict]

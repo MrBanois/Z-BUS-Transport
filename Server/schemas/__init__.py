@@ -3,3 +3,4 @@ from .transport import Route, RouteDetail, Station, Schedule, Vehicle, VehicleTy
 from .user import Userdata, Department, Position
 from .trip import TripLog, TripLogDetail
 from .common import Status, StandardResponse
+from .report import Report
