@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../data/auth_repository.dart';
 import '../presentation/features/auth/auth_page.dart';
 import '../presentation/features/account/account_page.dart';
 import '../presentation/features/booking/booking_page.dart';
@@ -40,6 +41,49 @@ enum AppPage {
 }
 
 extension AppPageInfo on AppPage {
+  /// Whether reaching this page requires a signed-in session.
+  bool get requiresAuth => this != AppPage.login && this != AppPage.register;
+
+  /// The `kPermissionOrder` screen that unlocks this page.
+  ///
+  /// A page with `null` here is reachable by any signed-in account, regardless
+  /// of their mask: there is no matching bit in the 16 for it. That covers
+  /// [account] only. Every other page maps to exactly one screen, and each
+  /// screen is claimed by exactly one page so an admin cannot unlock an
+  /// unreachable screen by accident.
+  String? get permission => switch (this) {
+    AppPage.login || AppPage.register => null,
+    AppPage.booking => 'Reserve seats',
+    AppPage.bookings => 'My reservations',
+    AppPage.account => null,
+    AppPage.driverSchedule => 'My driving schedule',
+    AppPage.currentTrip => 'Active trip',
+    AppPage.checkIn => 'Scan passenger QR',
+    AppPage.user => 'Manage users',
+    AppPage.employee => 'Manage employees',
+    AppPage.department => 'Manage departments',
+    AppPage.position => 'Manage positions',
+    AppPage.station => 'Manage stations',
+    AppPage.vehicle => 'Manage vehicles',
+    AppPage.route => 'Manage routes',
+    AppPage.schedule => 'Manage schedules',
+    AppPage.reports => 'Statistic reports',
+  };
+
+  /// Whether [session] may open this page.
+  ///
+  /// The authentication surfaces are always allowed. Every other page needs a
+  /// session, and one whose [permission] is null is allowed for any signed-in
+  /// account because no bit in the 16 describes it. [account] is the only such
+  /// page today; adding a second one is a deliberate act, not an omission.
+  bool isAllowed(Session? session) {
+    if (!requiresAuth) return true;
+    if (session == null) return false;
+    final needed = permission;
+    if (needed == null) return true;
+    return session.can(needed);
+  }
+
   String get label => switch (this) {
     AppPage.login => 'Login',
     AppPage.register => 'Register',

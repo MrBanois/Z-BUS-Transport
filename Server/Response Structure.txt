@@ -7,12 +7,36 @@ Response Structure
 ==========================================
 
 /api/login              (POST)
-    message : Login successful
-    user :
-        id : id
-        name : name + lname
-        email : db_email
-        permission : perms
+    request body :
+        email: str
+        password: str
+    401 Invalid credentials  (unknown email OR wrong password, same detail for both)
+    response :
+        message : Login successful
+        user :
+            id : id
+            name : name + lname
+            email : db_email
+            permission : perms   (16 bit 0/1 mask, see PERMISSION_ORDER)
+
+==========================================
+
+/api/register           (POST)
+    Creates a PASSENGER only. Always stored with ISEMP = 'F', SALARY = NULL.
+    dep and pos must reference DEPARTMENT / POSITION rows with ISEMP = 'F',
+    otherwise the account cannot register a staff department or position.
+    request body :
+        f_name: str
+        l_name: str
+        email: str          (unique, stored lowercase)
+        password: str       (min 6 chars, stored as MD5(id + password))
+        dep: str            (department id)
+        pos: str            (position id)
+    400 invalid name / email / password / department / position
+    409 Email is already registered
+    response :
+        msg : Account Created Successfully
+        info : U000000016    (the generated user id)
 
 ==========================================
 
@@ -20,7 +44,12 @@ Response Structure
     List[Position]
         id: str
         name: str
-        permission: str
+        permission: str      (16 bit 0/1 mask, see PERMISSION_ORDER)
+        isemp: bool          (True = staff, False = passenger facing)
+
+/api/position/passenger (GET)
+    List[Position]          same shape, only ISEMP = 'F'
+    Feeds the registration form's position dropdown.
 
 /api/position           (POST)
     msg: str
@@ -78,6 +107,11 @@ Response Structure
     List[Department]
         id: str
         name: str
+        isemp: bool          (True = staff, False = passenger facing)
+
+/api/department/passenger (GET)
+    List[Department]        same shape, only ISEMP = 'F'
+    Feeds the registration form's department dropdown.
 
 /api/department         (POST)
     msg: str

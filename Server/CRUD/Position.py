@@ -12,6 +12,7 @@
 
 from fastapi import APIRouter, HTTPException
 from Connect_DB import get_db_connection
+from permissions import PERMISSION_LENGTH, is_valid_mask
 from schemas import Position, StandardResponse
 
 from oracledb import Connection
@@ -79,7 +80,7 @@ def get_position() -> List[Position] :
         
         cursor = conn.cursor()
 
-        cursor.execute('''SELECT P."ID", P."NAME", P."PERMISSION" FROM "POSITION" P''')
+        cursor.execute('''SELECT P."ID", P."NAME", P."PERMISSION", P."ISEMP" FROM "POSITION" P''')
         rows = cursor.fetchall()
 
         # Convert rows to a list of dictionaries
@@ -88,7 +89,54 @@ def get_position() -> List[Position] :
             results.append({
                 "id": row[0],
                 "name": row[1],
-                "permission": row[2]
+                "permission": row[2],
+                "isemp": row[3] == 'T'
+            })
+        return results
+
+    except HTTPException as he :
+        raise he
+    except Exception as e:
+        print(f"Error : {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+    finally :
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+@router.get("/position/passenger", response_model=List[Position])
+def get_passenger_position() -> List[Position] :
+    """
+    GET only the passenger facing positions (ISEMP = 'F').
+
+    This is the list the registration form's position dropdown reads, so a public
+    sign-up can never be issued an employee position and the screens it unlocks.
+    """
+    conn = None
+    cursor = None
+    try :
+        conn = get_db_connection()
+        if not conn:
+            raise HTTPException(status_code=500, detail="Database connection failed")
+        
+        cursor = conn.cursor()
+
+        cursor.execute('''
+        SELECT P."ID", P."NAME", P."PERMISSION", P."ISEMP"
+        FROM "POSITION" P
+        WHERE P."ISEMP" = 'F'
+        ORDER BY P."ID"
+        ''')
+        rows = cursor.fetchall()
+
+        results : List[Position] = []
+        for row in rows:
+            results.append({
+                "id": row[0],
+                "name": row[1],
+                "permission": row[2],
+                "isemp": row[3] == 'T'
             })
         return results
 
@@ -105,7 +153,7 @@ def get_position() -> List[Position] :
 
 #From Z-Bus mockup there should be 16 permissions
 @router.post("/position", response_model=StandardResponse)
-def create_position(name: str, perms: str) -> StandardResponse :
+def create_position(name: str, perms: str, isemp: bool = True) -> StandardResponse :
     """
     POST Create a new position record.
     
@@ -145,10 +193,19 @@ def create_position(name: str, perms: str) -> StandardResponse :
         if not perms or not perms.strip():
             raise HTTPException(status_code=400, detail="Permission string cannot be empty")
 
+        # PERMISSION is a 16 character '0'/'1' mask. Rejecting a malformed value
+        # here stops a wrong length or a stray character from being stored and
+        # later read as a screen nobody intended to grant.
+        if not is_valid_mask(perms.strip()):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Permission must be exactly {PERMISSION_LENGTH} '0'/'1' characters",
+            )
+
         # Insert the position
-        sql = '''INSERT INTO "POSITION" ("ID", "NAME", "PERMISSION")
-                   VALUES (:autogen, :name, :perms)'''
-        cursor.execute(sql, [autogen_id, name.strip(), perms.strip()])
+        sql = '''INSERT INTO "POSITION" ("ID", "NAME", "PERMISSION", "ISEMP")
+                   VALUES (:autogen, :name, :perms, :isemp)'''
+        cursor.execute(sql, [autogen_id, name.strip(), perms.strip(), 'T' if isemp else 'F'])
         conn.commit()
 
         return StandardResponse(
@@ -169,7 +226,7 @@ def create_position(name: str, perms: str) -> StandardResponse :
             conn.close()
 
 @router.put("/position/{id}", response_model=StandardResponse)
-def update_position(id: str, name: str, perms: str) -> StandardResponse :
+def update_position(id: str, name: str, perms: str, isemp: bool = True) -> StandardResponse :
     """
     PUT Update an existing position record.
     
@@ -207,9 +264,17 @@ def update_position(id: str, name: str, perms: str) -> StandardResponse :
         if not perms or not perms.strip():
             raise HTTPException(status_code=400, detail="Permission string cannot be empty")
 
+        if not is_valid_mask(perms.strip()):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Permission must be exactly {PERMISSION_LENGTH} '0'/'1' characters",
+            )
+
         # Update the position
-        sql = '''UPDATE "POSITION" SET "NAME" = :name, "PERMISSION" = :perm WHERE "ID" = :id'''
-        cursor.execute(sql, [name.strip(), perms.strip(), id.strip()])
+        sql = '''UPDATE "POSITION"
+                 SET "NAME" = :name, "PERMISSION" = :perm, "ISEMP" = :isemp
+                 WHERE "ID" = :id'''
+        cursor.execute(sql, [name.strip(), perms.strip(), 'T' if isemp else 'F', id.strip()])
         conn.commit()
 
         return StandardResponse(

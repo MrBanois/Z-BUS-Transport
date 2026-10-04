@@ -44,52 +44,70 @@ class ZButton extends StatefulWidget {
 class _ZButtonState extends State<ZButton> {
   bool hover = false;
   @override
-  Widget build(BuildContext context) => MouseRegion(
-    onEnter: (_) => setState(() => hover = true),
-    onExit: (_) => setState(() => hover = false),
-    child: AnimatedContainer(
-      duration: MediaQuery.disableAnimationsOf(context)
-          ? Duration.zero
-          : const Duration(milliseconds: 170),
-      decoration: BoxDecoration(
-        color: widget.secondary
-            ? (hover ? ZColors.surface2 : Colors.transparent)
-            : (hover ? ZColors.accent : ZColors.ink),
-        border: Border.all(
-          color: widget.secondary
-              ? ZColors.line
-              : (hover ? ZColors.accent : ZColors.ink),
+  Widget build(BuildContext context) {
+    // A null callback means the action is unavailable right now, which is
+    // visually distinct from a secondary button: muted fill and hairline, no
+    // hover response.
+    final enabled = widget.onPressed != null;
+    final fill = !enabled
+        ? ZColors.surface2
+        : widget.secondary
+        ? (hover ? ZColors.surface2 : Colors.transparent)
+        : (hover ? ZColors.accent : ZColors.ink);
+    final edge = !enabled
+        ? ZColors.line
+        : widget.secondary
+        ? ZColors.line
+        : (hover ? ZColors.accent : ZColors.ink);
+    final ink = !enabled
+        ? ZColors.muted
+        : widget.secondary
+        ? ZColors.ink
+        : ZColors.bg;
+    return MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      onEnter: enabled ? (_) => setState(() => hover = true) : null,
+      onExit: enabled ? (_) => setState(() => hover = false) : null,
+      child: AnimatedContainer(
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 170),
+        decoration: BoxDecoration(
+          color: fill,
+          border: Border.all(color: edge),
         ),
-      ),
-      child: TextButton(
-        onPressed: widget.onPressed,
-        style: TextButton.styleFrom(
-          foregroundColor: widget.secondary ? ZColors.ink : ZColors.bg,
-          padding: EdgeInsets.symmetric(
-            horizontal: widget.compact ? 16 : 22,
-            vertical: widget.compact ? 13 : 17,
-          ),
-          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              widget.text.toUpperCase(),
-              style: ZTheme.mono(
-                11,
-                color: widget.secondary ? ZColors.ink : ZColors.bg,
-              ),
+        child: TextButton(
+          // Kept non-null so the button keeps its intrinsic height while
+          // disabled; TextButton would collapse to zero otherwise.
+          onPressed: enabled
+              ? widget.onPressed
+              : () {},
+          style: TextButton.styleFrom(
+            foregroundColor: ink,
+            disabledForegroundColor: ink,
+            padding: EdgeInsets.symmetric(
+              horizontal: widget.compact ? 16 : 22,
+              vertical: widget.compact ? 13 : 17,
             ),
-            if (widget.icon != null) ...[
-              const SizedBox(width: 18),
-              Icon(widget.icon, size: 15),
+            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                widget.text.toUpperCase(),
+                style: ZTheme.mono(11, color: ink),
+              ),
+              if (widget.icon != null) ...[
+                const SizedBox(width: 18),
+                Icon(widget.icon, size: 15, color: ink),
+              ],
             ],
-          ],
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class ZStatus extends StatelessWidget {
@@ -553,6 +571,9 @@ class ZSelect extends StatelessWidget {
         initialValue: value,
         isExpanded: true,
         dropdownColor: ZColors.surface2,
+        // See the note in ui_fields.dart: the closed state and the menu items
+        // need the colour set separately.
+        style: const TextStyle(fontSize: 14, color: ZColors.ink),
         decoration: const InputDecoration(),
         items: items
             .map(
@@ -561,7 +582,7 @@ class ZSelect extends StatelessWidget {
                 child: Text(
                   itemLabels[e] ?? e,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 13),
+                  style: const TextStyle(fontSize: 13, color: ZColors.ink),
                 ),
               ),
             )

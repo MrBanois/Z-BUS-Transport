@@ -138,7 +138,10 @@ class _UiSelect extends StatelessWidget {
           initialValue: selected,
           isExpanded: true,
           dropdownColor: ZColors.surface2,
-          style: const TextStyle(fontSize: 14),
+          // Material's default dropdown text is black on this dark surface, and
+          // the item widgets sit outside the button's style, so the colour has
+          // to be set in both places rather than inherited.
+          style: const TextStyle(fontSize: 14, color: ZColors.ink),
           decoration: InputDecoration(hintText: hint, errorText: error),
           items: [
             for (final option in options)
@@ -147,7 +150,7 @@ class _UiSelect extends StatelessWidget {
                 child: Text(
                   option.label,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 13),
+                  style: const TextStyle(fontSize: 13, color: ZColors.ink),
                 ),
               ),
           ],

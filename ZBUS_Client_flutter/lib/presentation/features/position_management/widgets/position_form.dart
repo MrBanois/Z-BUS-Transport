@@ -6,12 +6,19 @@ import 'permission_editor.dart';
 
 /// The employee switch reports account type; derive its ID prefix outside UI.
 /// Supply generated IDs as read-only values. Persist via onSave in your presenter.
+///
+/// The `employee` toggle is the UI face of `POSITION.ISEMP`: when it reports
+/// false, the server only offers this position to self-registration
+/// (`GET /api/position/passenger`). Keeping the mapping here would duplicate the
+/// rule, so the presenter decides and the toggle only reports.
 class PositionForm extends StatelessWidget {
   const PositionForm({
     super.key,
     this.values = const {},
     this.options = const {},
     this.errors = const {},
+    this.permissionMask,
+    this.onPermissionChanged,
     this.onChanged,
     this.onSave,
     this.onDelete,
@@ -20,6 +27,12 @@ class PositionForm extends StatelessWidget {
   final Map<String, Object?> values;
   final Map<String, List<UiOption>> options;
   final Map<String, String> errors;
+
+  /// Raw `POSITION.PERMISSION` mask, decoded by [PermissionEditor].
+  final String? permissionMask;
+
+  /// Reports one screen toggled; the presenter re-encodes and persists.
+  final void Function(String, bool)? onPermissionChanged;
   final void Function(String, Object?)? onChanged;
   final VoidCallback? onSave, onDelete;
   final Widget? extra;
@@ -37,6 +50,11 @@ class PositionForm extends StatelessWidget {
     onChanged: onChanged,
     onSave: onSave,
     onDelete: onDelete,
-    extra: extra ?? const PermissionEditor(),
+    extra:
+        extra ??
+        PermissionEditor(
+          mask: permissionMask,
+          onChanged: onPermissionChanged,
+        ),
   );
 }

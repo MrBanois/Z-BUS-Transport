@@ -35,6 +35,11 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
 
+  # JSON transport for the FastAPI server. `package:http` is used rather than
+  # dart:io because the same client code has to run on web, where dart:io's
+  # HttpClient is unavailable.
+  http: ^1.6.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

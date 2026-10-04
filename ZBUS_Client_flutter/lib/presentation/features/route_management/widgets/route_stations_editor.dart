@@ -81,7 +81,9 @@ class RouteStationsEditor extends StatelessWidget {
                     initialValue: selected,
                     isExpanded: true,
                     dropdownColor: ZColors.surface2,
-                    style: const TextStyle(fontSize: 14),
+                    // See the note in ui_fields.dart: the closed state and the
+                    // menu items need the colour set separately.
+                    style: const TextStyle(fontSize: 14, color: ZColors.ink),
                     decoration: const InputDecoration(),
                     items: [
                       for (final option in options)
@@ -90,7 +92,7 @@ class RouteStationsEditor extends StatelessWidget {
                           child: Text(
                             option.label,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 13),
+                            style: const TextStyle(fontSize: 13, color: ZColors.ink),
                           ),
                         ),
                     ],

@@ -3,8 +3,11 @@ import 'package:flutter/material.dart';
 import '../../shared/design_system.dart';
 import '../../shared/ui_fields.dart';
 
-/// Connect submit to your authentication use case. Public registration should
-/// create a passenger on the server. No demo email or password bypass exists.
+/// A controlled sign-in / registration surface.
+///
+/// Supply [values], [options], [errors], [error] and [busy] from an
+/// [AuthController]; there is no demo email or password bypass here. The
+/// controller owns validation, the HTTP call and the permission mask.
 ///
 /// The layout mirrors the reference sign-in: a full-bleed editorial panel beside
 /// the form on wide viewports, collapsing to the form alone on phones.
@@ -15,6 +18,9 @@ class AuthPage extends StatelessWidget {
     this.values = const {},
     this.options = const {},
     this.errors = const {},
+    this.error,
+    this.busy = false,
+    this.optionsLoading = false,
     this.onChanged,
     this.onSubmit,
     this.onToggleMode,
@@ -25,6 +31,17 @@ class AuthPage extends StatelessWidget {
   final Map<String, Object?> values;
   final Map<String, List<UiOption>> options;
   final Map<String, String> errors;
+
+  /// A request-level failure, shown above the form. Field problems belong in
+  /// [errors] instead.
+  final String? error;
+
+  /// Disables the controls while a request is in flight.
+  final bool busy;
+
+  /// Disables the two dropdowns while the passenger-facing lists load.
+  final bool optionsLoading;
+
   final void Function(String, Object?)? onChanged;
   final VoidCallback? onSubmit, onToggleMode;
   final bool remember;
@@ -46,7 +63,17 @@ class AuthPage extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     if (!wide) ...[const _BrandMark(), const ZGap(70)],
-                    const ZLabel('MEMBER ACCESS / ZBUS', color: ZColors.accent),
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: ZLabel(
+                            'MEMBER ACCESS / ZBUS',
+                            color: ZColors.accent,
+                          ),
+                        ),
+                        if (busy) const ZLabel('WORKING', color: ZColors.muted),
+                      ],
+                    ),
                     const ZGap(20),
                     Text(
                       register ? 'JOIN THE\nNETWORK.' : 'WELCOME\nABOARD.',
@@ -90,8 +117,26 @@ class AuthPage extends StatelessWidget {
                       values: values,
                       options: options,
                       errors: errors,
-                      onChanged: onChanged,
+                      onChanged: busy ? null : onChanged,
                     ),
+                    if (error != null) ...[
+                      const ZGap(18),
+                      ZNotice(
+                        'Could not continue',
+                        error!,
+                        color: ZColors.accent,
+                        icon: Icons.error_outline,
+                      ),
+                    ],
+                    if (register && optionsLoading) ...[
+                      const ZGap(18),
+                      const ZNotice(
+                        'Loading options',
+                        'Reading the passenger departments and positions. '
+                        'Staff departments are excluded by the server.',
+                        color: ZColors.muted,
+                      ),
+                    ],
                     if (onRememberChanged != null) ...[
                       const ZGap(2),
                       Row(
@@ -114,15 +159,19 @@ class AuthPage extends StatelessWidget {
                     ],
                     const ZGap(20),
                     ZButton(
-                      register ? 'Create account' : 'Enter ZBus',
-                      onPressed: onSubmit,
-                      icon: Icons.arrow_forward,
+                      // Relabelled while in flight, and disabled, so a double tap
+                      // cannot register the same address twice.
+                      busy
+                          ? (register ? 'Creating' : 'Signing in')
+                          : (register ? 'Create account' : 'Enter ZBus'),
+                      onPressed: busy ? null : onSubmit,
+                      icon: busy ? null : Icons.arrow_forward,
                     ),
                     const ZGap(10),
                     ZButton(
                       register ? 'Back to sign in' : 'Register',
                       secondary: true,
-                      onPressed: onToggleMode,
+                      onPressed: busy ? null : onToggleMode,
                     ),
                     const ZGap(18),
                     const ZNotice(

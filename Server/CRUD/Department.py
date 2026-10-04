@@ -33,7 +33,7 @@ def get_department() -> List[Department] :
         
         cursor = conn.cursor()
 
-        cursor.execute('''SELECT D."ID", D."NAME" FROM "DEPARTMENT" D''')
+        cursor.execute('''SELECT D."ID", D."NAME", D."ISEMP" FROM "DEPARTMENT" D''')
         rows = cursor.fetchall()
 
         # Convert rows to a list of dictionaries
@@ -41,7 +41,54 @@ def get_department() -> List[Department] :
         for row in rows:
             results.append({
                 "id": row[0],
-                "name": row[1]
+                "name": row[1],
+                "isemp": row[2] == 'T'
+            })
+        return results
+
+    except HTTPException as he :
+        raise he
+    except Exception as e:
+        print(f"Error : {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+    finally :
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+@router.get("/department/passenger", response_model=List[Department])
+def get_passenger_department() -> List[Department] :
+    """
+    GET only the passenger facing departments (ISEMP = 'F').
+
+    This is the list the registration form's department dropdown reads, so a
+    public sign-up cannot offer staff departments. Declared as a fixed path
+    rather than a query flag so the intent stays visible at the call site.
+    """
+    conn = None
+    cursor = None
+    try :
+        conn = get_db_connection()
+        if not conn:
+            raise HTTPException(status_code=500, detail="Database connection failed")
+        
+        cursor = conn.cursor()
+
+        cursor.execute('''
+        SELECT D."ID", D."NAME", D."ISEMP"
+        FROM "DEPARTMENT" D
+        WHERE D."ISEMP" = 'F'
+        ORDER BY D."ID"
+        ''')
+        rows = cursor.fetchall()
+
+        results : List[Department] = []
+        for row in rows:
+            results.append({
+                "id": row[0],
+                "name": row[1],
+                "isemp": row[2] == 'T'
             })
         return results
 
@@ -57,7 +104,7 @@ def get_department() -> List[Department] :
             conn.close()
 
 @router.post("/department", response_model=StandardResponse)
-def create_department(name: str) -> StandardResponse :
+def create_department(name: str, isemp: bool = True) -> StandardResponse :
     conn = None
     cursor = None
     autogen_id = None
@@ -71,9 +118,9 @@ def create_department(name: str) -> StandardResponse :
         cursor = conn.cursor()
 
         # Insert the position
-        sql = '''INSERT INTO "DEPARTMENT" ("ID", "NAME")
-                   VALUES (:autogen, :name)'''
-        cursor.execute(sql, [autogen_id, name.strip()])
+        sql = '''INSERT INTO "DEPARTMENT" ("ID", "NAME", "ISEMP")
+                   VALUES (:autogen, :name, :isemp)'''
+        cursor.execute(sql, [autogen_id, name.strip(), 'T' if isemp else 'F'])
         conn.commit()
 
         return StandardResponse(
@@ -94,7 +141,7 @@ def create_department(name: str) -> StandardResponse :
             conn.close()
 
 @router.put("/department/{id}", response_model=StandardResponse)
-def update_department(id: str, name: str) -> StandardResponse :
+def update_department(id: str, name: str, isemp: bool = True) -> StandardResponse :
     conn = None
     cursor = None
     try:
@@ -105,8 +152,10 @@ def update_department(id: str, name: str) -> StandardResponse :
         cursor = conn.cursor()
 
         # Update the position
-        sql = '''UPDATE "DEPARTMENT" SET "NAME" = :name WHERE "ID" = :id'''
-        cursor.execute(sql, [name.strip(), id.strip()])
+        sql = '''UPDATE "DEPARTMENT"
+                 SET "NAME" = :name, "ISEMP" = :isemp
+                 WHERE "ID" = :id'''
+        cursor.execute(sql, [name.strip(), 'T' if isemp else 'F', id.strip()])
         conn.commit()
 
         return StandardResponse(
