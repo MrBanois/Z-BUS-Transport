@@ -230,9 +230,10 @@ class ApiClient {
 
   /// `GET /api/user/profile/{id}`: the signed-in member's own record.
   ///
-  /// The response deliberately has no password field, so there is nothing to
-  /// strip here. `/api/user` does return the hashes, which is why this route
-  /// exists rather than filtering that list client side.
+  /// Takes precedence over `GET /api/user` for self-service even though the two
+  /// now agree that no credential material is returned. This route is the
+  /// narrower contract: it also carries the department and position *names*, so
+  /// the account screen needs no second lookup just to label two fields.
   Future<Map<String, dynamic>> profile(String userId) => _send(
     () => _client.get(_uri('/api/user/profile/${Uri.encodeComponent(userId)}')),
     'Profile',
@@ -266,6 +267,180 @@ class ApiClient {
       'Saving your profile',
     );
     return '${decoded['info'] ?? ''}'.trim();
+  }
+
+  // ===========================================================================
+  // Administration
+  // ===========================================================================
+  // Department, position and account management. All six writes take JSON
+  // bodies, matching the routes above, so no value a caller supplies travels in
+  // the query string where an access log would keep it.
+
+  /// `GET /api/department`.
+  Future<List<Map<String, dynamic>>> departments() =>
+      _list('/api/department', 'departments');
+
+  /// `GET /api/position`.
+  Future<List<Map<String, dynamic>>> positions() =>
+      _list('/api/position', 'positions');
+
+  /// `GET /api/user`. Every account.
+  Future<List<Map<String, dynamic>>> users() => _list('/api/user', 'users');
+
+  /// `GET /api/user-linked`. Only accounts whose department and position both
+  /// resolve, with the two names filled in.
+  Future<List<Map<String, dynamic>>> usersLinked() =>
+      _list('/api/user-linked', 'users');
+
+  /// `POST /api/department`.
+  Future<String> createDepartment({
+    required String name,
+    required bool isEmployee,
+  }) async {
+    final body = await _post(
+      '/api/department',
+      {'name': name, 'isemp': isEmployee},
+      'Creating the department',
+    );
+    return '${body['info'] ?? ''}'.trim();
+  }
+
+  /// `PUT /api/department/{id}`. Replaces name and ISEMP together.
+  Future<String> updateDepartment({
+    required String id,
+    required String name,
+    required bool isEmployee,
+  }) async {
+    final body = await _put(
+      '/api/department/${Uri.encodeComponent(id)}',
+      {'name': name, 'isemp': isEmployee},
+      'Saving the department',
+    );
+    return '${body['info'] ?? ''}'.trim();
+  }
+
+  /// `DELETE /api/department/{id}`. 409 while accounts still reference it.
+  Future<String> deleteDepartment(String id) => _delete(
+    '/api/department/${Uri.encodeComponent(id)}',
+    'Deleting the department',
+  );
+
+  /// `POST /api/position`.
+  Future<String> createPosition({
+    required String name,
+    required String permissions,
+    required bool isEmployee,
+  }) async {
+    final body = await _post(
+      '/api/position',
+      {'name': name, 'perms': permissions, 'isemp': isEmployee},
+      'Creating the position',
+    );
+    return '${body['info'] ?? ''}'.trim();
+  }
+
+  /// `PUT /api/position/{id}`. Replaces name, mask and ISEMP together.
+  Future<String> updatePosition({
+    required String id,
+    required String name,
+    required String permissions,
+    required bool isEmployee,
+  }) async {
+    final body = await _put(
+      '/api/position/${Uri.encodeComponent(id)}',
+      {'name': name, 'perms': permissions, 'isemp': isEmployee},
+      'Saving the position',
+    );
+    return '${body['info'] ?? ''}'.trim();
+  }
+
+  /// `DELETE /api/position/{id}`. 409 while accounts still reference it.
+  Future<String> deletePosition(String id) => _delete(
+    '/api/position/${Uri.encodeComponent(id)}',
+    'Deleting the position',
+  );
+
+  /// `POST /api/user`. [password] omitted assigns the server's default.
+  Future<String> createUser({
+    required String firstName,
+    required String lastName,
+    required String email,
+    required String department,
+    required String position,
+    required bool isEmployee,
+    required double salary,
+    String? password,
+  }) async {
+    final body = await _post(
+      '/api/user',
+      <String, dynamic>{
+        'f_name': firstName,
+        'l_name': lastName,
+        'email': email,
+        'dep': department,
+        'pos': position,
+        'isemp': isEmployee,
+        'sal': salary,
+        // Omitted rather than null when there is nothing to send: null would
+        // mean "reset to the stored value" on update but is not the create
+        // route's way of saying "no password", and the two must not be confused.
+        if (password != null && password.isNotEmpty) 'password': password,
+      },
+      'Creating the account',
+    );
+    return '${body['info'] ?? ''}'.trim();
+  }
+
+  /// `PUT /api/user/{id}`. [password] omitted leaves the stored hash alone;
+  /// supplying one resets it.
+  Future<String> updateUser({
+    required String id,
+    required String firstName,
+    required String lastName,
+    required String email,
+    required String department,
+    required String position,
+    required bool isEmployee,
+    required double salary,
+    String? password,
+  }) async {
+    final body = await _put(
+      '/api/user/${Uri.encodeComponent(id)}',
+      <String, dynamic>{
+        'f_name': firstName,
+        'l_name': lastName,
+        'email': email,
+        'dep': department,
+        'pos': position,
+        'isemp': isEmployee,
+        'sal': salary,
+        if (password != null && password.isNotEmpty) 'password': password,
+      },
+      'Saving the account',
+    );
+    return '${body['info'] ?? ''}'.trim();
+  }
+
+  /// `DELETE /api/user/{id}`.
+  Future<String> deleteUser(String id) => _delete(
+    '/api/user/${Uri.encodeComponent(id)}',
+    'Deleting the account',
+  );
+
+  Future<String> _delete(String path, String what) async {
+    late final http.Response response;
+    try {
+      response = await _client.delete(_uri(path)).timeout(timeout);
+    } on TimeoutException {
+      throw ApiUnreachable(
+        'The server did not respond. Check that it is running.',
+      );
+    } on http.ClientException catch (e) {
+      throw ApiUnreachable('Cannot reach the server at $baseUrl. ${e.message}'.trim());
+    }
+    final decoded = _decode(response, what);
+    if (decoded is Map<String, dynamic>) return '${decoded['info'] ?? ''}'.trim();
+    throw ApiException('$what returned an unexpected response.');
   }
 
   void dispose() => _client.close();

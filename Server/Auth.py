@@ -15,7 +15,6 @@
 # through /api/user, which an admin calls, so a public endpoint can never mint
 # an employee.
 
-import hashlib
 import re
 
 from fastapi import APIRouter, HTTPException
@@ -24,8 +23,8 @@ from columns import (
     MAX_EMAIL_LENGTH,
     MAX_NAME_LENGTH,
     MAX_POSITION_LENGTH,
-    MIN_PASSWORD_LENGTH,
 )
+from credentials import hash_password, validate_password, verify_password
 from Connect_DB import get_db_connection
 from ids import generate_user_id
 from schemas import Credentials, LoginResponse, RegisterRequest, StandardResponse
@@ -35,22 +34,6 @@ router = APIRouter()
 # Deliberately permissive: one @, no spaces, a dotted domain. Anything stricter
 # rejects legitimate institutional addresses.
 _EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-
-
-# =============================================================================
-# Password helpers
-# =============================================================================
-
-def hash_password(user_id: str, password: str) -> str:
-    """Return the stored form of a password: MD5(ID + password)."""
-    return hashlib.md5(f"{user_id}{password}".encode()).hexdigest()
-
-
-def verify_password(user_id: str, password: str, stored_hash: str) -> bool:
-    """Check a login attempt against the stored hash."""
-    return hashlib.md5(
-        f"{user_id}{password}".encode()
-    ).hexdigest() == stored_hash
 
 
 # =============================================================================
@@ -182,13 +165,12 @@ def register(request: RegisterRequest) -> StandardResponse:
             raise HTTPException(status_code=400, detail="Email address is not valid")
 
         # --- 3. Password ----------------------------------------------------
-        # Length is checked before any DB work so a weak password never reaches
-        # the database.
-        if len(password) < MIN_PASSWORD_LENGTH:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Password must be at least {MIN_PASSWORD_LENGTH} characters",
-            )
+        # Checked before any DB work so a weak password never reaches the
+        # database. The rule itself lives in credentials so the administration
+        # screens enforce the same one.
+        problem = validate_password(password)
+        if problem:
+            raise HTTPException(status_code=400, detail=problem)
 
         # --- Column widths for the CHAR(5) references ------------------------
         if len(dep) > MAX_DEPARTMENT_LENGTH or len(pos) > MAX_POSITION_LENGTH:

@@ -6,18 +6,33 @@ import '../../shared/ui_table.dart';
 import 'widgets/employee_form.dart';
 import 'widgets/employee_table.dart';
 
-/// Empty by default. Inject rows, search and add handlers from your presenter.
-/// The fallback Add action only opens the empty form; it does not create records.
+/// Managed staff accounts.
+///
+/// The same table as the user screen, narrowed to ISEMP = 'T' by the presenter.
+/// Logic-free: rows, search text, list state and every callback arrive from it.
 class EmployeeManagementPage extends StatelessWidget {
   const EmployeeManagementPage({
     super.key,
     this.rows = const [],
     this.onSearchChanged,
     this.onAdd,
+    this.searchController,
+    this.loading = false,
+    this.error,
+    this.notice,
+    this.onRetry,
+    this.onDismiss,
+    this.emptyLabel = 'No records yet',
   });
   final List<UiTableRow> rows;
   final ValueChanged<String>? onSearchChanged;
   final VoidCallback? onAdd;
+  final TextEditingController? searchController;
+  final bool loading;
+  final String? error, notice;
+  final VoidCallback? onRetry, onDismiss;
+  final String emptyLabel;
+
   @override
   Widget build(BuildContext context) => CrudPage(
     title: masterEmployees.headline,
@@ -28,6 +43,18 @@ class EmployeeManagementPage extends StatelessWidget {
     sectionTitle: 'All employees',
     table: EmployeeTable(rows: rows),
     onSearchChanged: onSearchChanged,
+    searchController: searchController,
+    loading: loading,
+    hasRows: rows.isNotEmpty,
+    error: error,
+    notice: notice,
+    onRetry: onRetry,
+    onDismiss: onDismiss,
+    emptyTitle: emptyLabel,
+    emptyMessage: loading
+        ? ''
+        : 'Staff accounts only. An employee\'s assignment is set here, not on '
+              'their own account screen.',
     onAdd:
         onAdd ??
         () => showDialog<void>(

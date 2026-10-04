@@ -1,6 +1,8 @@
 from fastapi import APIRouter, HTTPException
+from columns import MAX_REFERENCE_NAME_LENGTH
 from Connect_DB import get_db_connection
-from schemas import Department, StandardResponse
+from errors import field_error
+from schemas import Department, DepartmentCreate, DepartmentUpdate, StandardResponse
 
 from oracledb import Connection
 from typing import List
@@ -22,6 +24,20 @@ def _generateDepID(connection: Connection) -> str :
         next_num = numeric_part + 1
         return f"D{next_num:04d}"
 
+
+def _clean_name(name: str) -> str:
+    """Validate a department name, or raise the error the client renders inline."""
+    trimmed = (name or "").strip()
+    if not trimmed:
+        raise field_error(400, "Department name cannot be empty", "name")
+    if len(trimmed) > MAX_REFERENCE_NAME_LENGTH:
+        raise field_error(
+            400,
+            f"Department name cannot exceed {MAX_REFERENCE_NAME_LENGTH} characters",
+            "name",
+        )
+    return trimmed
+
 @router.get("/department", response_model=List[Department])
 def get_department() -> List[Department] :
     conn = None
@@ -33,7 +49,14 @@ def get_department() -> List[Department] :
         
         cursor = conn.cursor()
 
-        cursor.execute('''SELECT D."ID", D."NAME", D."ISEMP" FROM "DEPARTMENT" D''')
+        # Ordered by id, not left to the optimiser: this list drives both the
+        # management table and the account form's department dropdown, and an
+        # unordered result can reshuffle between calls or after a restart.
+        cursor.execute('''
+        SELECT D."ID", D."NAME", D."ISEMP"
+        FROM "DEPARTMENT" D
+        ORDER BY D."ID"
+        ''')
         rows = cursor.fetchall()
 
         # Convert rows to a list of dictionaries
@@ -104,7 +127,12 @@ def get_passenger_department() -> List[Department] :
             conn.close()
 
 @router.post("/department", response_model=StandardResponse)
-def create_department(name: str, isemp: bool = True) -> StandardResponse :
+def create_department(body: DepartmentCreate) -> StandardResponse :
+    """Create a department.
+
+    The id is generated here rather than accepted from the caller, so two
+    administrators cannot pick the same one.
+    """
     conn = None
     cursor = None
     autogen_id = None
@@ -112,15 +140,28 @@ def create_department(name: str, isemp: bool = True) -> StandardResponse :
         conn = get_db_connection()
         if not conn:
             raise HTTPException(status_code=500, detail="Database connection failed")
-        
-        # Generate position ID
-        autogen_id = _generateDepID(conn)
+
+        name = _clean_name(body.name)
+
         cursor = conn.cursor()
 
-        # Insert the position
+        # A duplicate name would make the dropdowns ambiguous and the screen
+        # would show two identical entries, so it is refused before the insert
+        # rather than surfacing later as ORA-00001 on the unique index.
+        cursor.execute('''
+        SELECT COUNT(*) FROM "DEPARTMENT" WHERE UPPER("NAME") = UPPER(:name)
+        ''', [name])
+        if cursor.fetchone()[0]:
+            raise HTTPException(
+                status_code=409,
+                detail=f"A department called {name} already exists",
+            )
+
+        autogen_id = _generateDepID(conn)
+
         sql = '''INSERT INTO "DEPARTMENT" ("ID", "NAME", "ISEMP")
                    VALUES (:autogen, :name, :isemp)'''
-        cursor.execute(sql, [autogen_id, name.strip(), 'T' if isemp else 'F'])
+        cursor.execute(sql, [autogen_id, name, 'T' if body.isemp else 'F'])
         conn.commit()
 
         return StandardResponse(
@@ -132,7 +173,7 @@ def create_department(name: str, isemp: bool = True) -> StandardResponse :
         # Re-raise HTTP exceptions without rolling back (already handled)
         raise
     except Exception as e:
-        print(f"Error creating position: {e}")
+        print(f"Error creating department: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
     finally:
         if cursor:
@@ -141,7 +182,13 @@ def create_department(name: str, isemp: bool = True) -> StandardResponse :
             conn.close()
 
 @router.put("/department/{id}", response_model=StandardResponse)
-def update_department(id: str, name: str, isemp: bool = True) -> StandardResponse :
+def update_department(id: str, body: DepartmentUpdate) -> StandardResponse :
+    """Replace a department's name and account type.
+
+    This endpoint always sends both fields. There is no partial update, so a
+    caller that wants to rename a passenger-facing department without publishing
+    it to the registration form has to resend `isemp: false` explicitly.
+    """
     conn = None
     cursor = None
     try:
@@ -149,18 +196,32 @@ def update_department(id: str, name: str, isemp: bool = True) -> StandardRespons
         if not conn:
             raise HTTPException(status_code=500, detail="Database connection failed")
 
+        name = _clean_name(body.name)
+        department_id = id.strip()
+
         cursor = conn.cursor()
 
-        # Update the position
+        # Same rule as create, excluding this row so saving without changing the
+        # name is not treated as a duplicate of itself.
+        cursor.execute('''
+        SELECT COUNT(*) FROM "DEPARTMENT"
+        WHERE UPPER("NAME") = UPPER(:name) AND "ID" <> :id
+        ''', [name, department_id])
+        if cursor.fetchone()[0]:
+            raise HTTPException(
+                status_code=409,
+                detail=f"A department called {name} already exists",
+            )
+
         sql = '''UPDATE "DEPARTMENT"
                  SET "NAME" = :name, "ISEMP" = :isemp
                  WHERE "ID" = :id'''
-        cursor.execute(sql, [name.strip(), 'T' if isemp else 'F', id.strip()])
+        cursor.execute(sql, [name, 'T' if body.isemp else 'F', department_id])
         conn.commit()
 
         return StandardResponse(
             msg="Department Updated Successfully",
-            info= f"{id} ({name})"
+            info= f"{department_id} ({name})"
         )
 
     except HTTPException:
@@ -177,6 +238,11 @@ def update_department(id: str, name: str, isemp: bool = True) -> StandardRespons
 
 @router.delete("/department/{id}", response_model=StandardResponse)
 def delete_department(id: str) -> StandardResponse :
+    """Delete a department, refusing while any account still points at it.
+
+    Without the guard Oracle raises ORA-02273, which surfaces as an opaque 500.
+    The client renders this 409 as a banner explaining what to do instead.
+    """
     conn = None
     cursor = None
     try:
@@ -184,23 +250,40 @@ def delete_department(id: str) -> StandardResponse :
         if not conn:
             raise HTTPException(status_code=500, detail="Database connection failed")
 
+        department_id = id.strip()
         cursor = conn.cursor()
 
-        # Delete the department
-        sql = '''DELETE FROM "DEPARTMENT" WHERE ID = :id'''
-        cursor.execute(sql, [id.strip()])
+        cursor.execute('''
+        SELECT
+            (SELECT COUNT(*) FROM "USER"      WHERE "DEP" = :id),
+            (SELECT COUNT(*) FROM "DEPARTMENT" WHERE "ID" = :id)
+        FROM DUAL''', [department_id])
+        in_use, exists = cursor.fetchone()
+
+        if not exists:
+            raise HTTPException(status_code=404, detail="Department not found")
+        if in_use:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "This department is still assigned to "
+                    f"{in_use} account(s). Move them first."
+                ),
+            )
+
+        cursor.execute('DELETE FROM "DEPARTMENT" WHERE "ID" = :id', [department_id])
         conn.commit()
 
         return StandardResponse(
             msg="Department Deleted Successfully",
-            info=id
+            info=department_id
         )
 
     except HTTPException:
         # Re-raise HTTP exceptions without rolling back (already handled)
         raise
     except Exception as e:
-        print(f"Error deleting position: {e}")
+        print(f"Error deleting department: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
     finally:
         if cursor:

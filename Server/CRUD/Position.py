@@ -11,14 +11,49 @@
 #   - oracledb: Oracle database driver
 
 from fastapi import APIRouter, HTTPException
+from columns import MAX_REFERENCE_NAME_LENGTH
 from Connect_DB import get_db_connection
+from errors import field_error
 from permissions import PERMISSION_LENGTH, is_valid_mask
-from schemas import Position, StandardResponse
+from schemas import Position, PositionCreate, PositionUpdate, StandardResponse
 
 from oracledb import Connection
 from typing import List
 
 router = APIRouter()
+
+
+def _clean_name(name: str) -> str:
+    """Validate a position name, or raise the error the client renders inline."""
+    trimmed = (name or "").strip()
+    if not trimmed:
+        raise field_error(400, "Position name cannot be empty", "name")
+    if len(trimmed) > MAX_REFERENCE_NAME_LENGTH:
+        raise field_error(
+            400,
+            f"Position name cannot exceed {MAX_REFERENCE_NAME_LENGTH} characters",
+            "name",
+        )
+    return trimmed
+
+
+def _clean_mask(perms: str) -> str:
+    """Validate the 16 bit mask, or raise an error the editor can render.
+
+    PERMISSION is a 16 character '0'/'1' mask. Rejecting a malformed value here
+    stops a wrong length or a stray character from being stored and later read as
+    a screen nobody intended to grant.
+    """
+    trimmed = (perms or "").strip()
+    if not trimmed:
+        raise field_error(400, "Permission string cannot be empty", "permissions")
+    if not is_valid_mask(trimmed):
+        raise field_error(
+            400,
+            f"Permission must be exactly {PERMISSION_LENGTH} '0'/'1' characters",
+            "permissions",
+        )
+    return trimmed
 
 # =============================================================================
 # Helper Functions
@@ -80,7 +115,14 @@ def get_position() -> List[Position] :
         
         cursor = conn.cursor()
 
-        cursor.execute('''SELECT P."ID", P."NAME", P."PERMISSION", P."ISEMP" FROM "POSITION" P''')
+        # Ordered by id, not left to the optimiser: this list drives both the
+        # management table and the account form's position dropdown, and an
+        # unordered result can reshuffle between calls or after a restart.
+        cursor.execute('''
+        SELECT P."ID", P."NAME", P."PERMISSION", P."ISEMP"
+        FROM "POSITION" P
+        ORDER BY P."ID"
+        ''')
         rows = cursor.fetchall()
 
         # Convert rows to a list of dictionaries
@@ -153,26 +195,12 @@ def get_passenger_position() -> List[Position] :
 
 #From Z-Bus mockup there should be 16 permissions
 @router.post("/position", response_model=StandardResponse)
-def create_position(name: str, perms: str, isemp: bool = True) -> StandardResponse :
-    """
-    POST Create a new position record.
-    
-    Creates a new position in the database with an auto-generated ID.
-    Validates that both name and permissions are provided.
-    
-    Args:
-        name (str): The name of the position (e.g., "Admin", "Manager")
-        perms (str): Permission string associated with the position
-        
-    Returns:
-        StandardResponse: Response containing success message and created position info
-        
-    Example Request:
-        POST /position
-        Body: {"name": "Admin", "perms": "ADMIN"}
-        
-    Example Response:
-        {"msg": "Position Created Successfully", "info": "P0006 (Admin)"}
+def create_position(body: PositionCreate) -> StandardResponse :
+    """Create a position with an auto-generated id.
+
+    The id is generated here, and the mask is validated before the insert, so a
+    position can never be stored with a permission string that means something
+    other than what the editor showed.
     """
     conn = None
     cursor = None
@@ -181,31 +209,26 @@ def create_position(name: str, perms: str, isemp: bool = True) -> StandardRespon
         conn = get_db_connection()
         if not conn:
             raise HTTPException(status_code=500, detail="Database connection failed")
-        
-        # Generate position ID
-        autogen_id = _generatePosID(conn)
+
+        name = _clean_name(body.name)
+        perms = _clean_mask(body.perms)
+
         cursor = conn.cursor()
 
-        # Validate input data
-        if not name or not name.strip():
-            raise HTTPException(status_code=400, detail="Position name cannot be empty")
-
-        if not perms or not perms.strip():
-            raise HTTPException(status_code=400, detail="Permission string cannot be empty")
-
-        # PERMISSION is a 16 character '0'/'1' mask. Rejecting a malformed value
-        # here stops a wrong length or a stray character from being stored and
-        # later read as a screen nobody intended to grant.
-        if not is_valid_mask(perms.strip()):
+        cursor.execute('''
+        SELECT COUNT(*) FROM "POSITION" WHERE UPPER("NAME") = UPPER(:name)
+        ''', [name])
+        if cursor.fetchone()[0]:
             raise HTTPException(
-                status_code=400,
-                detail=f"Permission must be exactly {PERMISSION_LENGTH} '0'/'1' characters",
+                status_code=409,
+                detail=f"A position called {name} already exists",
             )
 
-        # Insert the position
+        autogen_id = _generatePosID(conn)
+
         sql = '''INSERT INTO "POSITION" ("ID", "NAME", "PERMISSION", "ISEMP")
                    VALUES (:autogen, :name, :perms, :isemp)'''
-        cursor.execute(sql, [autogen_id, name.strip(), perms.strip(), 'T' if isemp else 'F'])
+        cursor.execute(sql, [autogen_id, name, perms, 'T' if body.isemp else 'F'])
         conn.commit()
 
         return StandardResponse(
@@ -226,27 +249,11 @@ def create_position(name: str, perms: str, isemp: bool = True) -> StandardRespon
             conn.close()
 
 @router.put("/position/{id}", response_model=StandardResponse)
-def update_position(id: str, name: str, perms: str, isemp: bool = True) -> StandardResponse :
-    """
-    PUT Update an existing position record.
-    
-    Updates the name and permissions of an existing position by its ID.
-    The position ID must exist in the database for this operation to succeed.
-    
-    Args:
-        id (str): The ID of the position to update (e.g., "P0001")
-        name (str): The new name for the position
-        perms (str): The new permission string for the position
-        
-    Returns:
-        StandardResponse: Response containing success message and updated position info
-        
-    Example Request:
-        PUT /position/P0001
-        Body: {"name": "Administrator", "perms": "SUPER_ADMIN"}
-        
-    Example Response:
-        {"msg": "Position Updated Successfully", "info": "P0001 (Administrator)"}
+def update_position(id: str, body: PositionUpdate) -> StandardResponse :
+    """Replace a position's name, mask and account type.
+
+    Always sends all three fields: this is not a partial update, so a caller
+    editing only the name must resend the mask it already had.
     """
     conn = None
     cursor = None
@@ -255,31 +262,31 @@ def update_position(id: str, name: str, perms: str, isemp: bool = True) -> Stand
         if not conn:
             raise HTTPException(status_code=500, detail="Database connection failed")
 
+        name = _clean_name(body.name)
+        perms = _clean_mask(body.perms)
+        position_id = id.strip()
+
         cursor = conn.cursor()
 
-        # Validate input data
-        if not name or not name.strip():
-            raise HTTPException(status_code=400, detail="Position name cannot be empty")
-
-        if not perms or not perms.strip():
-            raise HTTPException(status_code=400, detail="Permission string cannot be empty")
-
-        if not is_valid_mask(perms.strip()):
+        cursor.execute('''
+        SELECT COUNT(*) FROM "POSITION"
+        WHERE UPPER("NAME") = UPPER(:name) AND "ID" <> :id
+        ''', [name, position_id])
+        if cursor.fetchone()[0]:
             raise HTTPException(
-                status_code=400,
-                detail=f"Permission must be exactly {PERMISSION_LENGTH} '0'/'1' characters",
+                status_code=409,
+                detail=f"A position called {name} already exists",
             )
 
-        # Update the position
         sql = '''UPDATE "POSITION"
                  SET "NAME" = :name, "PERMISSION" = :perm, "ISEMP" = :isemp
                  WHERE "ID" = :id'''
-        cursor.execute(sql, [name.strip(), perms.strip(), 'T' if isemp else 'F', id.strip()])
+        cursor.execute(sql, [name, perms, 'T' if body.isemp else 'F', position_id])
         conn.commit()
 
         return StandardResponse(
             msg="Position Updated Successfully",
-            info= f"{id} ({name})"
+            info= f"{position_id} ({name})"
         )
 
     except HTTPException:
@@ -296,23 +303,10 @@ def update_position(id: str, name: str, perms: str, isemp: bool = True) -> Stand
 
 @router.delete("/position/{id}", response_model=StandardResponse)
 def delete_position(id: str) -> StandardResponse :
-    """
-    DELETE Remove a position record from the database.
-    
-    Deletes a position record from the POSITION table by its ID.
-    The position ID must exist in the database for this operation to succeed.
-    
-    Args:
-        id (str): The ID of the position to delete (e.g., "P0001")
-        
-    Returns:
-        StandardResponse: Response containing success message and deleted position ID
-        
-    Example Request:
-        DELETE /position/P0001
-        
-    Example Response:
-        {"msg": "Position Deleted Successfully", "info": "P0001"}
+    """Delete a position, refusing while any account still points at it.
+
+    The guard exists because POSITION.ID is referenced by USER.POS. Without it
+    Oracle raises ORA-02273, which reaches the client as an unexplained 500.
     """
     conn = None
     cursor = None
@@ -321,16 +315,33 @@ def delete_position(id: str) -> StandardResponse :
         if not conn:
             raise HTTPException(status_code=500, detail="Database connection failed")
 
+        position_id = id.strip()
         cursor = conn.cursor()
 
-        # Delete the position
-        sql = '''DELETE FROM "POSITION" WHERE ID = :id'''
-        cursor.execute(sql, [id.strip()])
+        cursor.execute('''
+        SELECT
+            (SELECT COUNT(*) FROM "USER"     WHERE "POS" = :id),
+            (SELECT COUNT(*) FROM "POSITION" WHERE "ID" = :id)
+        FROM DUAL''', [position_id])
+        in_use, exists = cursor.fetchone()
+
+        if not exists:
+            raise HTTPException(status_code=404, detail="Position not found")
+        if in_use:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "This position is still assigned to "
+                    f"{in_use} account(s). Move them first."
+                ),
+            )
+
+        cursor.execute('DELETE FROM "POSITION" WHERE "ID" = :id', [position_id])
         conn.commit()
 
         return StandardResponse(
             msg="Position Deleted Successfully",
-            info=id
+            info=position_id
         )
 
     except HTTPException:

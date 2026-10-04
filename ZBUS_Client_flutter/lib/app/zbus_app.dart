@@ -8,9 +8,12 @@ import 'account_host.dart';
 import 'app_page.dart';
 import 'auth_controller.dart';
 import 'auth_gate.dart';
+import 'crud_controller.dart';
+import 'crud_controllers.dart';
+import 'crud_host.dart';
 
 class ZBusApp extends StatelessWidget {
-  const ZBusApp({super.key, this.auth, this.account});
+  const ZBusApp({super.key, this.auth, this.account, this.crud});
 
   /// Injectable so a test can supply a controller backed by a fake repository.
   /// Omitting it builds a controller wired to the real FastAPI server.
@@ -20,6 +23,14 @@ class ZBusApp extends StatelessWidget {
   /// when omitted the shell creates one against the real server.
   final AccountController? account;
 
+  /// The four management screens' state, keyed by page. Injectable for the same
+  /// reason; when omitted the shell creates one of each against the real server.
+  ///
+  /// Keyed rather than passed as four separate parameters because the set of
+  /// management pages is decided by the permission mask, and a caller injecting
+  /// stubs should not have to know the whole set.
+  final Map<AppPage, CrudController<Object>>? crud;
+
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'ZBus Transport',
@@ -28,6 +39,7 @@ class ZBusApp extends StatelessWidget {
     home: ZBusShell(
       auth: auth ?? AuthController(),
       account: account ?? AccountController(),
+      crud: crud,
     ),
   );
 }
@@ -40,9 +52,10 @@ class ZBusApp extends StatelessWidget {
 /// state. Which page may open at all is decided by [AuthController] via
 /// [AppPage.isAllowed].
 class ZBusShell extends StatefulWidget {
-  const ZBusShell({super.key, required this.auth, this.account});
+  const ZBusShell({super.key, required this.auth, this.account, this.crud});
   final AuthController auth;
   final AccountController? account;
+  final Map<AppPage, CrudController<Object>>? crud;
   @override
   State<ZBusShell> createState() => _ZBusShellState();
 }
@@ -58,6 +71,37 @@ class _ZBusShellState extends State<ZBusShell>
   late final AccountController _account =
       widget.account ?? AccountController();
 
+  /// One controller per management screen, created lazily and kept for the life
+  /// of the session.
+  ///
+  /// Created lazily because the shell also renders the login surface: building
+  /// four controllers, and the repositories behind them, for a user who has not
+  /// signed in yet would be work whose result is never shown. Kept rather than
+  /// rebuilt because a list should not re-fetch every time the page is revisited,
+  /// which is the same reason [_account] is held.
+  final Map<AppPage, CrudController<Object>> _crud = {};
+
+  /// Resolve the controller for a management page, building it the first time.
+  ///
+  /// A page outside the management set has no controller, and [crudFor] returns
+  /// null for it rather than building one nothing would use.
+  CrudController<Object>? crudFor(AppPage page) {
+    final existing = _crud[page];
+    if (existing != null) return existing;
+    // Typed as CrudController<Object> rather than left to the switch: the four
+    // controllers differ in their row type, so inference lands on the shared
+    // base ChangeNotifier and loses the methods callers need.
+    final CrudController<Object>? created = switch (page) {
+      AppPage.department => DepartmentController(),
+      AppPage.position => PositionController(),
+      AppPage.user => UserController(),
+      AppPage.employee => EmployeeController(),
+      _ => null,
+    };
+    if (created == null) return null;
+    return _crud[page] = created;
+  }
+
   late final AnimationController transition = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 240),
@@ -72,10 +116,28 @@ class _ZBusShellState extends State<ZBusShell>
     end: Offset.zero,
   ).animate(fade);
 
+  /// Controllers the caller supplied.
+  Map<AppPage, CrudController<Object>> get _injected =>
+      widget.crud ?? const {};
+
+  @override
+  void initState() {
+    super.initState();
+    // Seeded up front so [crudFor] hands an injected controller straight back
+    // instead of building a second one for the same page.
+    _crud.addAll(_injected);
+  }
+
   @override
   void dispose() {
     transition.dispose();
     _account.dispose();
+    // The shell created these, so the shell frees them. Disposing an injected
+    // controller would be wrong: the caller that passed it in still holds it.
+    final injected = _injected;
+    for (final entry in _crud.entries) {
+      if (!identical(injected[entry.key], entry.value)) entry.value.dispose();
+    }
     super.dispose();
   }
 
@@ -100,6 +162,15 @@ class _ZBusShellState extends State<ZBusShell>
     // next sign-in's page briefly stale, or worse, let a save land on the old
     // row if the next member shares no id.
     _account.reset();
+    // The management lists are not cleared. They are reference data rather than
+    // anything personal, and every one of them is behind a permission bit that
+    // the next session is re-checked against — so an open dialog belongs to the
+    // member who left, but a cached list of departments does not. The lists are
+    // re-fetched on the next visit anyway, via `load(force: true)` after a write
+    // and the host's own bootstrap.
+    for (final controller in _crud.values) {
+      if (controller.open) controller.close();
+    }
     setState(() {
       page = AppPage.login;
       drawerOpen = false;
@@ -205,14 +276,32 @@ class _ZBusShellState extends State<ZBusShell>
     );
   }
 
-  /// The one page that cannot be built from [AppPage.screen] alone.
+  /// The pages that cannot be built from [AppPage.screen] alone.
   ///
   /// `AppPage.screen` stays a parameterless getter because every other page is
-  /// still a static mockup with no data behind it; [AccountHost] is where the
-  /// account page gets its record and its callbacks, so the exception is visible
-  /// here rather than hidden inside the enum.
+  /// still a static mockup with no data behind it. Each host here is where its
+  /// page gets its records and its callbacks, so the exceptions are visible in
+  /// this switch rather than hidden inside the enum.
+  ///
+  /// A management page whose controller failed to resolve falls back to
+  /// [AppPage.screen]: a blank shell is worse than the mockup, and this cannot
+  /// happen for the four pages named below, which [crudFor] always builds.
   Widget _screen(AppPage page, Session session) => switch (page) {
     AppPage.account => AccountHost(controller: _account, session: session),
+    AppPage.department => DepartmentCrudHost(
+      controller: crudFor(AppPage.department)! as DepartmentController,
+    ),
+    AppPage.position => PositionCrudHost(
+      controller: crudFor(AppPage.position)! as PositionController,
+    ),
+    AppPage.user => AccountCrudHost(
+      controller: crudFor(AppPage.user)! as UserController,
+      staffOnly: false,
+    ),
+    AppPage.employee => AccountCrudHost(
+      controller: crudFor(AppPage.employee)! as UserController,
+      staffOnly: true,
+    ),
     _ => page.screen,
   };
 }

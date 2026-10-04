@@ -17,11 +17,29 @@ class UiFieldSpec {
     this.kind = UiFieldKind.text,
     this.readOnly = false,
     this.hint,
+    this.help,
+    this.error,
   });
   final String name, label;
   final UiFieldKind kind;
+
+  /// Fixed by something other than this screen. Kept focusable and selectable so
+  /// it can still be read and copied, and marked as not editable for every kind,
+  /// not just text.
   final bool readOnly;
+
+  /// The placeholder shown while the field is empty.
   final String? hint;
+
+  /// Why this field cannot be edited, or a rule about its value.
+  ///
+  /// Under the control rather than as the placeholder, because a locked field's
+  /// placeholder is usually still occupied by the value it holds.
+  final String? help;
+
+  /// The rejection to show under this field. Attached to the spec rather than
+  /// passed separately so a caller cannot render a control without its error.
+  final String? error;
 }
 
 /// Controlled fields. Supply values/options/errors and forward changes to your
@@ -45,6 +63,27 @@ class UiFields extends StatelessWidget {
   final Map<String, List<UiOption>> options;
   final Map<String, String> errors;
   final void Function(String, Object?)? onChanged;
+
+  /// The spec with this field's rejection attached, so the control and the message
+  /// about it cannot be built from different sources.
+  ///
+  /// Returns the original instance unchanged when there is no error, which is the
+  /// common case: rebuilding every spec on every keystroke would rebuild every
+  /// control, and the text fields hold their own controllers across that.
+  UiFieldSpec _withError(UiFieldSpec field, Map<String, String> errors) {
+    final error = errors[field.name];
+    if (error == null) return field;
+    return UiFieldSpec(
+      field.name,
+      field.label,
+      kind: field.kind,
+      readOnly: field.readOnly,
+      hint: field.hint,
+      help: field.help,
+      error: error,
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Column(
     mainAxisSize: MainAxisSize.min,
@@ -55,19 +94,21 @@ class UiFields extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 18),
           child: switch (field.kind) {
             UiFieldKind.toggle => Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       ZLabel(field.label),
-                      if (field.hint != null) ...[
+                      if (field.help != null) ...[
                         const ZGap(6, 8),
                         Text(
-                          field.hint!,
+                          field.help!,
                           style: const TextStyle(
                             color: ZColors.muted,
                             fontSize: 12,
+                            height: 1.4,
                           ),
                         ),
                       ],
@@ -84,20 +125,17 @@ class UiFields extends StatelessWidget {
               ],
             ),
             UiFieldKind.select => _UiSelect(
-              label: field.label,
-              hint: field.hint,
-              error: errors[field.name],
+              field: _withError(field, errors),
               value: values[field.name]?.toString(),
               options: options[field.name] ?? const <UiOption>[],
-              onChanged: field.readOnly || onChanged == null
+              onChanged: onChanged == null
                   ? null
                   : (v) => onChanged!(field.name, v),
             ),
             _ => _BoundTextField(
               key: ValueKey(field.name),
-              field: field,
+              field: _withError(field, errors),
               value: values[field.name]?.toString(),
-              error: errors[field.name],
               onChanged: onChanged == null
                   ? null
                   : (v) => onChanged!(field.name, v),
@@ -109,40 +147,48 @@ class UiFields extends StatelessWidget {
 }
 
 /// Dropdown matching ZSelect: mono label above, flat border, squared corners.
+///
 /// The selected value is only forwarded when it exists in the option list, which
-/// keeps an out-of-date presenter value from tripping the FormField assertion.
+/// keeps an out-of-date presenter value from tripping the FormField assertion. That
+/// is also what makes narrowing the list safe: a value the caller has just made
+/// ineligible shows as unselected rather than as a choice that is not on offer.
 class _UiSelect extends StatelessWidget {
   const _UiSelect({
-    required this.label,
+    required this.field,
     required this.value,
     required this.options,
     required this.onChanged,
-    this.hint,
-    this.error,
   });
-  final String label;
+  final UiFieldSpec field;
   final String? value;
   final List<UiOption> options;
   final ValueChanged<String?>? onChanged;
-  final String? hint, error;
   @override
   Widget build(BuildContext context) {
     final selected = options.any((o) => o.value == value) ? value : null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ZLabel(label),
+        ZLabel(field.label),
         const SizedBox(height: 9),
         DropdownButtonFormField<String>(
-          key: ValueKey('$label:${selected ?? ''}'),
+          key: ValueKey('${field.name}:${selected ?? ''}'),
           initialValue: selected,
           isExpanded: true,
           dropdownColor: ZColors.surface2,
           // Material's default dropdown text is black on this dark surface, and
-          // the item widgets sit outside the button's style, so the colour has
-          // to be set in both places rather than inherited.
-          style: const TextStyle(fontSize: 14, color: ZColors.ink),
-          decoration: InputDecoration(hintText: hint, errorText: error),
+          // the item widgets sit outside the button's style, so the colour has to
+          // be set in both places rather than inherited.
+          style: TextStyle(
+            fontSize: 14,
+            color: field.readOnly ? ZColors.muted : ZColors.ink,
+          ),
+          decoration: InputDecoration(
+            hintText: field.hint,
+            errorText: field.error,
+            helperText: field.readOnly ? field.help : null,
+            helperStyle: const TextStyle(color: ZColors.muted, fontSize: 12),
+          ),
           items: [
             for (final option in options)
               DropdownMenuItem(
@@ -154,7 +200,7 @@ class _UiSelect extends StatelessWidget {
                 ),
               ),
           ],
-          onChanged: onChanged,
+          onChanged: field.readOnly ? null : onChanged,
         ),
       ],
     );
@@ -164,15 +210,9 @@ class _UiSelect extends StatelessWidget {
 // Controller lifecycle is view state, not business state. Synchronizing external
 // values here keeps focus/cursor stable when a presenter rebuilds after typing.
 class _BoundTextField extends StatefulWidget {
-  const _BoundTextField({
-    super.key,
-    required this.field,
-    this.value,
-    this.error,
-    this.onChanged,
-  });
+  const _BoundTextField({super.key, required this.field, this.value, this.onChanged});
   final UiFieldSpec field;
-  final String? value, error;
+  final String? value;
   final ValueChanged<String>? onChanged;
   @override
   State<_BoundTextField> createState() => _BoundTextFieldState();
@@ -207,17 +247,25 @@ class _BoundTextFieldState extends State<_BoundTextField> {
       const SizedBox(height: 9),
       TextFormField(
         controller: controller,
+        // readOnly rather than enabled: false, so a locked value can still be
+        // selected and copied. Nobody can type over a value that is set from
+        // elsewhere.
         readOnly: widget.field.readOnly,
         obscureText: widget.field.kind == UiFieldKind.password,
         keyboardType: widget.field.kind == UiFieldKind.number
             ? TextInputType.number
             : TextInputType.text,
-        style: const TextStyle(fontSize: 14),
+        style: TextStyle(
+          fontSize: 14,
+          color: widget.field.readOnly ? ZColors.muted : ZColors.ink,
+        ),
         decoration: InputDecoration(
           hintText: widget.field.hint,
-          errorText: widget.error,
+          errorText: widget.field.error,
+          helperText: widget.field.readOnly ? widget.field.help : null,
+          helperStyle: const TextStyle(color: ZColors.muted, fontSize: 12),
         ),
-        onChanged: widget.onChanged,
+        onChanged: widget.field.readOnly ? null : widget.onChanged,
       ),
     ],
   );

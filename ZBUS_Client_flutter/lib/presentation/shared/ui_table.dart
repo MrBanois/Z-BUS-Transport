@@ -2,6 +2,19 @@ import 'package:flutter/material.dart';
 
 import 'design_system.dart';
 
+/// Width of the trailing action cell: the gap before it, plus the two icon
+/// buttons and the space between them.
+///
+/// Named rather than written inline twice, because the header and the rows have
+/// to reserve exactly the same width, and the two buttons alone are wider than
+/// the cell used to allow — which overflowed on every device, not only in a
+/// narrow test surface. The button size comes from the button itself rather than
+/// a literal so the two cannot drift apart.
+const double _kActionGap = 12;
+const double _kActionSpacing = 8;
+const double _kActionsWidth =
+    _kActionGap + (kIconActionSize * 2) + _kActionSpacing;
+
 /// Presentation data only. Map your application results into named cells.
 /// Keep record IDs in callback closures; never use a displayed name as a key.
 class UiTableRow {
@@ -59,7 +72,7 @@ class UiTable extends StatelessWidget {
               children: [
                 for (final column in columns)
                   Expanded(child: ZLabel(column)),
-                if (actions) const SizedBox(width: 92),
+                if (actions) const SizedBox(width: _kActionsWidth),
               ],
             ),
           ),
@@ -74,8 +87,8 @@ class UiTable extends StatelessWidget {
                         child: _cell(column, rows[i], _isStatus(column)),
                       ),
                     if (actions) ...[
-                      const SizedBox(width: 12),
-                      SizedBox(width: 80, child: _actions(rows[i])),
+                      const SizedBox(width: _kActionGap),
+                      SizedBox(width: _kActionsWidth - _kActionGap, child: _actions(rows[i])),
                     ],
                   ],
                 ),
@@ -137,7 +150,7 @@ class UiTable extends StatelessWidget {
           onPressed: row.onEdit,
           tooltip: 'Edit',
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: _kActionSpacing),
         ZIconAction(
           icon: Icons.delete_outline,
           onPressed: row.onDelete,

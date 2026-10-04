@@ -5,6 +5,45 @@ Response Structure
     message : API is running
 
 ==========================================
+Error detail shapes
+==========================================
+Two shapes are in use, and the difference is what the client does with it.
+
+    plain string      "detail": "Account not found"
+                      Rendered as a banner above the form or list.
+
+    named field       "detail": {"message": "...", "field": "email"}
+                      Rendered under that input instead, when the named field is
+                      one the screen actually shows. Anything else falls back to
+                      the banner, so a message is never silently dropped.
+
+Only routes that build their HTTPException through errors.field_error() send the
+named-field shape. Field names are the client's form keys: firstName, lastName,
+email, department, position, name, permissions, password, salary.
+
+==========================================
+Passwords
+==========================================
+No endpoint returns password material. The listings used to include `passwd`,
+which handed every account's MD5 digest to the caller; that field is gone from
+both user listings and from the profile shape.
+
+The two writes treat a password differently, on purpose:
+    POST /api/user        `password` is REQUIRED. Creating an account is how a
+                          credential is handed over, so the credential is part of
+                          the request. A server-invented default used to stand in
+                          for it, derived from the public sequential USER.ID,
+                          which let anyone who could list accounts derive any
+                          other account's password.
+    PUT /api/user/{id}    `password` is optional. Omitted (null) means the stored
+                          hash is left exactly as it was; supplied, it replaces
+                          it.
+
+The digest is MD5(id + password), so it cannot be reconstructed from the stored
+value. A client therefore cannot round-trip it, which is why no read shape
+carries it, and why the edit form is allowed to send no password at all.
+
+==========================================
 
 /api/login              (POST)
     request body :
@@ -41,89 +80,207 @@ Response Structure
 ==========================================
 
 /api/position           (GET)
-    List[Position]
+    List[Position], ordered by id
         id: str
         name: str
         permission: str      (16 bit 0/1 mask, see PERMISSION_ORDER)
         isemp: bool          (True = staff, False = passenger facing)
 
 /api/position/passenger (GET)
-    List[Position]          same shape, only ISEMP = 'F'
+    List[Position]          same shape, only ISEMP = 'F', ordered by id
     Feeds the registration form's position dropdown.
 
 /api/position           (POST)
-    msg: str
-    info: str
+    request body :
+        name: str           (required, trimmed, max 20 chars)
+        perms: str          (required, exactly 16 '0'/'1' characters)
+        isemp: bool         (optional, defaults to true)
+    The id is generated here, so two administrators cannot pick the same one.
+    400 empty or over-long name                (field: name)
+    400 malformed mask                         (field: permissions)
+    409 a position of that name already exists
+    response :
+        msg : Position Created Successfully
+        info : P0011 (Clerk)
 
 /api/position/{id}      (PUT)
-    msg: str
-    info: str
+    request body :
+        name: str           (required)
+        perms: str          (required)
+        isemp: bool         (REQUIRED, no default)
+    Full replacement, not a patch: both the mask and the account type are always
+    written. `isemp` deliberately has no default, so a partial caller gets a 422
+    rather than silently turning a passenger facing position into a staff one.
+    400 / 409 as for create
+    response :
+        msg : Position Updated Successfully
+        info : P0001 (Driver)
 
 /api/position/{id}      (DELETE)
-    msg: str
-    info: str
+    404 Position not found
+    409 This position is still assigned to N account(s). Move them first.
+        Without this guard Oracle raises ORA-02273 and the caller sees an opaque
+        500 instead of anything actionable.
+    response :
+        msg : Position Deleted Successfully
+        info : P0011
 
 ==========================================
 
 /api/user               (GET)
-    List[Userdata]
+    List[Userdata], ordered by id. No `passwd`.
         id: str
         f_name: str
         l_name: str
         email: str
-        passwd: str
-        pos: str        (Position ID)
-        dep: str        (Department ID)
+        pos: str            (Position ID)
+        dep: str            (Department ID)
         isemp: bool
         salary: float
+        pos_name: str|null  (null on this route, by design)
+        dep_name: str|null  (null on this route, by design)
+    Read every account, staff and passenger alike. No filtering flag; a client
+    that wants staff only filters the response it already has.
 
 /api/user-linked        (GET)
-    List[Userdata]
+    List[Userdata], same fields and same absence of `passwd`, but INNER JOINed,
+    so pos_name and dep_name are populated.
+    Rows whose department or position is missing drop out, so this is the
+    account list to use when a screen must show a name for every row.
+
+/api/user/profile/{id}  (GET)
+    The signed-in member's own record. Narrower than Userdata, and deliberately
+    explicit that nothing credential-shaped crosses this route.
         id: str
         f_name: str
         l_name: str
         email: str
-        passwd: str
-        pos: str        (Position name)
-        dep: str        (Department name)
+        dep: str             (Department ID)
+        dep_name: str
+        pos: str             (Position ID)
+        pos_name: str
         isemp: bool
-        salary: float
+    404 Account not found
+
+/api/user/profile/{id}  (PUT)
+    A member renaming themselves. Does not touch EMAIL, PASSWORD, ISEMP or
+    SALARY, and never can.
+    request body :
+        f_name: str          (required)
+        l_name: str          (required)
+        dep: str | null      (null means leave as stored)
+        pos: str | null      (null means leave as stored)
+    400 empty / over-long name            (field: firstName, lastName)
+    400 malformed assignment id
+    403 Employee department and position are assigned by administration
+        An employee's dep/pos are administration-controlled, so a member cannot
+        move themselves onto a different one.
+    400 department not available to a passenger account   (field: department)
+    400 position not available to a passenger account     (field: position)
+    404 Account not found
+    response :
+        msg : Profile Updated Successfully
+        info : U000000001
 
 /api/user               (POST)
-    msg: str
-    info: str
+    Creates an account on someone's behalf.
+    request body :
+        f_name: str          (required)
+        l_name: str          (required)
+        email: str           (required, unique, stored lowercase)
+        dep: str             (required, Department ID)
+        pos: str             (required, Position ID)
+        isemp: bool          (required)
+        sal: float           (optional, defaults to 0, max 999999.99)
+        password: str        (REQUIRED, min 6 characters)
+    Note the body field is `sal` while the listings read `salary`. That asymmetry
+    is pre-existing; both sides match the column they were written for.
+    400 empty / over-long first or last name (field: firstName, lastName)
+    400 email missing, over-long or malformed   (field: email)
+    400 salary missing or above the column max  (field: salary)
+    400 password shorter than 6 characters      (field: password)
+    400 department / position does not exist    (field: department, position)
+    400 a PASSENGER cannot be assigned a staff department or position
+        The reverse is allowed: giving an employee a passenger facing position
+        only ever removes screens, so there is no reason to refuse it.
+    409 That email address is already registered          (field: email)
+    response :
+        msg : User Created Successfully
+        info : U000000017    (the generated user id)
 
 /api/user/{id}          (PUT)
-    msg: str
-    info: str
+    Full row replacement. Every column below is written every time, so omitting
+    one resets it rather than leaving it alone.
+    request body :
+        f_name: str          (required)
+        l_name: str          (required)
+        email: str           (required, unique, stored lowercase)
+        dep: str             (required, Department ID)
+        pos: str             (required, Position ID)
+        isemp: bool          (required)
+        sal: float           (optional, defaults to 0, max 999999.99)
+        password: str        (optional; null leaves the stored hash untouched,
+                             a value RESETS it. Note the asymmetry with POST: a
+                             create has nothing to keep, so it must supply one.)
+    The password rule is the correction that makes this screen possible: the
+    signature used to require one, and since the digest is MD5(id + password) an
+    administrator renaming an account had to know its current password or
+    silently destroy the credential.
+    400 as for create, plus 404 Account not found
+    409 That email address is already registered          (field: email)
+    response :
+        msg : User Updated Successfully
+        info : U000000001
 
 /api/user/{id}          (DELETE)
-    msg: str
-    info: str
+    404 Account not found
+    response :
+        msg : User Deleted Successfully
+        info : U000000001
 
 ==========================================
 
 /api/department         (GET)
-    List[Department]
+    List[Department], ordered by id
         id: str
         name: str
         isemp: bool          (True = staff, False = passenger facing)
 
 /api/department/passenger (GET)
-    List[Department]        same shape, only ISEMP = 'F'
+    List[Department]        same shape, only ISEMP = 'F', ordered by id
     Feeds the registration form's department dropdown.
 
 /api/department         (POST)
-    msg: str
-    info: str
+    request body :
+        name: str           (required, trimmed, max 20 chars)
+        isemp: bool         (optional, defaults to true)
+    The id is generated here, so two administrators cannot pick the same one.
+    400 empty or over-long name                (field: name)
+    409 a department of that name already exists
+    response :
+        msg : Department Created Successfully
+        info : D0011 (Yard)
 
 /api/department/{id}    (PUT)
-    msg: str
-    info: str
+    request body :
+        name: str           (required)
+        isemp: bool         (REQUIRED, no default)
+    Full replacement, not a patch: `isemp` deliberately has no default, so a
+    partial caller gets a 422 rather than silently publishing a passenger facing
+    department to the registration form.
+    400 / 409 as for create
+    response :
+        msg : Department Updated Successfully
+        info : D0001 (Transport)
 
 /api/department/{id}    (DELETE)
-    msg: str
-    info: str
+    404 Department not found
+    409 This department is still assigned to N account(s). Move them first.
+        Without this guard Oracle raises ORA-02273 and the caller sees an opaque
+        500 instead of anything actionable.
+    response :
+        msg : Department Deleted Successfully
+        info : D0011
 
 ==========================================
 

@@ -18,11 +18,13 @@ class PositionForm extends StatelessWidget {
     this.options = const {},
     this.errors = const {},
     this.permissionMask,
+    this.permissions,
     this.onPermissionChanged,
     this.onChanged,
     this.onSave,
     this.onDelete,
     this.extra,
+    this.bare = false,
   });
   final Map<String, Object?> values;
   final Map<String, List<UiOption>> options;
@@ -31,11 +33,19 @@ class PositionForm extends StatelessWidget {
   /// Raw `POSITION.PERMISSION` mask, decoded by [PermissionEditor].
   final String? permissionMask;
 
+  /// Already-decoded selection, when the caller has one. Takes precedence over
+  /// [permissionMask]: a presenter holding a set of screens should not have to
+  /// re-encode it to a 16 character string just to render the editor.
+  final Map<String, bool>? permissions;
+
   /// Reports one screen toggled; the presenter re-encodes and persists.
   final void Function(String, bool)? onPermissionChanged;
   final void Function(String, Object?)? onChanged;
   final VoidCallback? onSave, onDelete;
   final Widget? extra;
+
+  /// Render only the fields; the host supplies the dialog shell.
+  final bool bare;
   @override
   Widget build(BuildContext context) => CrudForm(
     title: 'Position',
@@ -54,7 +64,9 @@ class PositionForm extends StatelessWidget {
         extra ??
         PermissionEditor(
           mask: permissionMask,
+          permissions: permissions,
           onChanged: onPermissionChanged,
         ),
+    bare: bare,
   );
 }

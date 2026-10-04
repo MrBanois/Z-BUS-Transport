@@ -15,6 +15,7 @@ class DepartmentForm extends StatelessWidget {
     this.onSave,
     this.onDelete,
     this.extra,
+    this.bare = false,
   });
   final Map<String, Object?> values;
   final Map<String, List<UiOption>> options;
@@ -22,6 +23,9 @@ class DepartmentForm extends StatelessWidget {
   final void Function(String, Object?)? onChanged;
   final VoidCallback? onSave, onDelete;
   final Widget? extra;
+
+  /// Render only the fields; the host supplies the dialog shell.
+  final bool bare;
   @override
   Widget build(BuildContext context) => CrudForm(
     title: 'Department',
@@ -37,5 +41,6 @@ class DepartmentForm extends StatelessWidget {
     onSave: onSave,
     onDelete: onDelete,
     extra: extra,
+    bare: bare,
   );
 }

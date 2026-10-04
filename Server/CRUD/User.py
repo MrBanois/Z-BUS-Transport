@@ -1,17 +1,128 @@
 from fastapi import APIRouter, HTTPException
-from columns import MAX_DEPARTMENT_LENGTH, MAX_NAME_LENGTH, MAX_POSITION_LENGTH
+from columns import (
+    MAX_DEPARTMENT_LENGTH,
+    MAX_EMAIL_LENGTH,
+    MAX_NAME_LENGTH,
+    MAX_POSITION_LENGTH,
+    MAX_SALARY,
+)
+from credentials import hash_password, validate_password
 from Connect_DB import get_db_connection
+from errors import field_error
 from ids import generate_user_id
-from schemas import Profile, ProfileUpdate, Userdata, StandardResponse
+from schemas import (
+    Profile,
+    ProfileUpdate,
+    StandardResponse,
+    UserCreate,
+    UserUpdate,
+    Userdata,
+)
 
 from typing import List
-import hashlib
+import re
 
 router = APIRouter()
+
+# Same rule registration uses, so an administrator is not held to a stricter
+# standard than the public form. One @, no spaces, a dotted domain.
+_EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _clean_names(f_name: str, l_name: str) -> tuple[str, str]:
+    """Validate both names, raising against whichever one is wrong."""
+    first = (f_name or "").strip()
+    last = (l_name or "").strip()
+    if not first:
+        raise field_error(400, "First name is required", "firstName")
+    if not last:
+        raise field_error(400, "Last name is required", "lastName")
+    if len(first) > MAX_NAME_LENGTH:
+        raise field_error(
+            400, f"First name cannot exceed {MAX_NAME_LENGTH} characters", "firstName"
+        )
+    if len(last) > MAX_NAME_LENGTH:
+        raise field_error(
+            400, f"Last name cannot exceed {MAX_NAME_LENGTH} characters", "lastName"
+        )
+    return first, last
+
+
+def _clean_email(email: str) -> str:
+    cleaned = (email or "").strip().lower()
+    if not cleaned:
+        raise field_error(400, "Email is required", "email")
+    if len(cleaned) > MAX_EMAIL_LENGTH:
+        raise field_error(
+            400, f"Email cannot exceed {MAX_EMAIL_LENGTH} characters", "email"
+        )
+    if not _EMAIL_PATTERN.match(cleaned):
+        raise field_error(400, "Email address is not valid", "email")
+    return cleaned
+
+
+def _check_assignment(cursor, dep: str, pos: str, is_employee: bool) -> None:
+    """Confirm the department and position exist and suit the account type.
+
+    A passenger account must be given passenger-facing rows. This is the rule
+    registration enforces, and without it an administrator could hand a passenger
+    a staff position and, with it, every screen that position's mask unlocks.
+
+    The reverse is not restricted: giving an employee a passenger-facing position
+    only ever removes screens, so there is no equivalent reason to refuse it.
+    """
+    department = (dep or "").strip()
+    position = (pos or "").strip()
+
+    if len(department) > MAX_DEPARTMENT_LENGTH or len(position) > MAX_POSITION_LENGTH:
+        raise field_error(
+            400, "Department or position id is not valid", "department"
+        )
+
+    cursor.execute('''
+    SELECT
+        (SELECT COUNT(*) FROM "DEPARTMENT" WHERE "ID" = :dep),
+        (SELECT COUNT(*) FROM "POSITION"   WHERE "ID" = :pos)
+    FROM DUAL''', [department, position])
+    dep_exists, pos_exists = cursor.fetchone()
+
+    if not dep_exists:
+        raise field_error(400, "That department does not exist", "department")
+    if not pos_exists:
+        raise field_error(400, "That position does not exist", "position")
+
+    if is_employee:
+        return
+
+    cursor.execute('''
+    SELECT
+        (SELECT COUNT(*) FROM "DEPARTMENT" WHERE "ID" = :dep AND "ISEMP" = 'F'),
+        (SELECT COUNT(*) FROM "POSITION"   WHERE "ID" = :pos AND "ISEMP" = 'F')
+    FROM DUAL''', [department, position])
+    dep_passenger, pos_passenger = cursor.fetchone()
+
+    if not dep_passenger:
+        raise field_error(
+            400,
+            "A passenger cannot be assigned a staff department",
+            "department",
+        )
+    if not pos_passenger:
+        raise field_error(
+            400,
+            "A passenger cannot be assigned a staff position",
+            "position",
+        )
+
 
 #Pull user with no FK following
 @router.get("/user", response_model=List[Userdata])
 def get_user() -> List[Userdata]:
+    """Every account, for the Manage users screen.
+
+    PASSWORD is deliberately not selected. It used to be, which meant this route
+    published every account's credential digest to whoever asked.
+    """
     conn = None
     cursor = None
     try :
@@ -24,9 +135,10 @@ def get_user() -> List[Userdata]:
         cursor.execute('''
         SELECT
             U."ID", U."F_NAME", U."L_NAME", U."EMAIL",
-            U."PASSWORD", U."POS", U."DEP", U."ISEMP", U."SALARY"
+            U."POS", U."DEP", U."ISEMP", U."SALARY"
         FROM
             "USER" U
+        ORDER BY U."ID"
         ''')
         rows = cursor.fetchall()
 
@@ -38,11 +150,10 @@ def get_user() -> List[Userdata]:
                 "f_name": row[1],
                 "l_name": row[2],
                 "email": row[3],
-                "passwd": row[4],
-                "pos": row[5],
-                "dep": row[6],
-                "isemp": True if row[7] == 'T' else False,
-                "salary": 0 if row[8] is None else float(row[8])
+                "pos": row[4],
+                "dep": row[5],
+                "isemp": True if row[6] == 'T' else False,
+                "salary": 0 if row[7] is None else float(row[7])
             })
         return results
 
@@ -60,6 +171,16 @@ def get_user() -> List[Userdata]:
 #Pull user with FK following
 @router.get("/user-linked", response_model=List[Userdata])
 def get_user_linked() -> List[Userdata] :
+    """Every account whose department and position both resolve.
+
+    The INNER JOINs mean an account pointing at a deleted row is absent rather
+    than rendered blank, which is what makes this the safer list for the
+    employee screen.
+
+    Unlike the plain listing this also returns `dep_name` and `pos_name`. `pos`
+    and `dep` stay ids in both routes, so a caller can use them as dropdown
+    values without having to tell the two shapes apart.
+    """
     conn = None
     cursor = None
     try :
@@ -72,11 +193,13 @@ def get_user_linked() -> List[Userdata] :
         cursor.execute('''
         SELECT
             U."ID", U."F_NAME", U."L_NAME", U."EMAIL",
-            U."PASSWORD", P."NAME", D."NAME", U."ISEMP", U."SALARY"
+            U."POS", U."DEP", U."ISEMP", U."SALARY",
+            P."NAME", D."NAME"
         FROM
             "USER" U
             JOIN "POSITION" P ON P."ID" = U."POS"
             JOIN "DEPARTMENT" D ON D."ID" = U."DEP"
+        ORDER BY U."ID"
         ''')
         rows = cursor.fetchall()
 
@@ -88,11 +211,12 @@ def get_user_linked() -> List[Userdata] :
                 "f_name": row[1],
                 "l_name": row[2],
                 "email": row[3],
-                "passwd": row[4],
-                "pos": row[5],
-                "dep": row[6],
-                "isemp": True if row[7] == 'T' else False,
-                "salary": 0 if row[8] is None else float(row[8])
+                "pos": row[4],
+                "dep": row[5],
+                "isemp": True if row[6] == 'T' else False,
+                "salary": 0 if row[7] is None else float(row[7]),
+                "pos_name": row[8],
+                "dep_name": row[9],
             })
         return results
 
@@ -127,18 +251,6 @@ def get_user_linked() -> List[Userdata] :
 # any caller can read and rename any account. Closing that requires issuing a
 # token at /api/login and matching it here; it is not a job this endpoint can do
 # on its own.
-
-def _field_error(status : int, message : str, field : str) -> HTTPException:
-    """An error that names the control to put it under.
-
-    The client's forms key their fields by these names, so a rejection lands
-    beside the input that caused it instead of in a banner above the page. The
-    `message` key keeps it a string for anything that only displays the detail.
-    """
-    return HTTPException(
-        status_code=status,
-        detail={"message": message, "field": field},
-    )
 
 @router.get("/user/profile/{id}", response_model=Profile)
 def get_profile(id : str) -> Profile:
@@ -203,28 +315,14 @@ def update_profile(id : str, profile: ProfileUpdate) -> StandardResponse:
             raise HTTPException(status_code=500, detail="Database connection failed")
 
         user_id = id.strip()
-        f_name = (profile.f_name or "").strip()
-        l_name = (profile.l_name or "").strip()
+        # Same name rules the administration routes apply, so a member cannot
+        # save a name the administrator would have been refused.
+        f_name, l_name = _clean_names(profile.f_name, profile.l_name)
         # None means "unchanged". The screen sends both or neither, but a member
         # whose assignment is read-only should be able to rename themselves
         # without resending ids they were never shown.
         dep = None if profile.dep is None else profile.dep.strip()
         pos = None if profile.pos is None else profile.pos.strip()
-
-        # These name the control they belong to, so the client renders them
-        # under the input rather than as a banner. See _field_error.
-        if not f_name:
-            raise _field_error(400, "First name is required", "firstName")
-        if not l_name:
-            raise _field_error(400, "Last name is required", "lastName")
-        if len(f_name) > MAX_NAME_LENGTH:
-            raise _field_error(
-                400, f"First name cannot exceed {MAX_NAME_LENGTH} characters", "firstName"
-            )
-        if len(l_name) > MAX_NAME_LENGTH:
-            raise _field_error(
-                400, f"Last name cannot exceed {MAX_NAME_LENGTH} characters", "lastName"
-            )
 
         cursor = conn.cursor()
 
@@ -267,13 +365,13 @@ def update_profile(id : str, profile: ProfileUpdate) -> StandardResponse:
             dep_ok, pos_ok = cursor.fetchone()
 
             if not dep_ok:
-                raise _field_error(
+                raise field_error(
                     400,
                     "Selected department is not available to a passenger account",
                     "department",
                 )
             if not pos_ok:
-                raise _field_error(
+                raise field_error(
                     400,
                     "Selected position is not available to a passenger account",
                     "position",
@@ -305,9 +403,15 @@ def update_profile(id : str, profile: ProfileUpdate) -> StandardResponse:
             conn.close()
 
 @router.post("/user", response_model=StandardResponse)
-def add_user(f_name : str, l_name : str, email : str,
-             password : str, pos : str, dep : str, 
-             isemp : bool, sal : float) :
+def add_user(body: UserCreate) -> StandardResponse :
+    """Create an account on someone's behalf.
+
+    `password` is required by the body schema, because this is the moment somebody
+    decides what an account's credential is. There is no server-invented starting
+    password: the previous default was derived from the public, sequential
+    USER.ID, so every account created that way was guessable by anyone who could
+    list accounts. Nothing in any response reveals the credential afterwards.
+    """
     conn = None
     cursor = None
     autogen_id = None
@@ -315,18 +419,41 @@ def add_user(f_name : str, l_name : str, email : str,
         conn = get_db_connection()
         if not conn:
             raise HTTPException(status_code=500, detail="Database connection failed")
-        
-        # Generate user ID
-        autogen_id = generate_user_id(conn)
+
+        f_name, l_name = _clean_names(body.f_name, body.l_name)
+        email = _clean_email(body.email)
+
+        if body.sal is None or body.sal > MAX_SALARY:
+            raise field_error(
+                400, f"Salary cannot be above {MAX_SALARY:,.2f}", "salary"
+            )
+
+        # Checked before the id is generated so an obviously bad request costs
+        # nothing, and before any INSERT so a rejection never leaves a row behind.
+        problem = validate_password(body.password)
+        if problem:
+            raise field_error(400, problem, "password")
+
         cursor = conn.cursor()
+
+        _check_assignment(cursor, body.dep, body.pos, body.isemp)
+
+        cursor.execute(
+            'SELECT COUNT(*) FROM "USER" WHERE "EMAIL" = :email', [email]
+        )
+        if cursor.fetchone()[0]:
+            raise field_error(409, "That email address is already registered", "email")
+
+        autogen_id = generate_user_id(conn)
 
         sql = '''
         INSERT INTO "USER" ("ID", "F_NAME", "L_NAME", "EMAIL", "PASSWORD", "POS", "DEP", "ISEMP", "SALARY")
         VALUES (:autogen, :fname, :lname, :mail, :passwd, :pos, :dep, :isemp, :sal)
         '''
-        cursor.execute(sql, [autogen_id, f_name.strip(), l_name.strip(),
-                             email.strip(), hashlib.md5((autogen_id + password).encode()).hexdigest(),
-                             pos.strip(), dep.strip(), 'T' if isemp else 'F', sal])
+        cursor.execute(sql, [autogen_id, f_name, l_name, email,
+                             hash_password(autogen_id, body.password),
+                             body.pos.strip(), body.dep.strip(),
+                             'T' if body.isemp else 'F', body.sal])
         conn.commit()
 
         return StandardResponse(
@@ -346,9 +473,19 @@ def add_user(f_name : str, l_name : str, email : str,
             conn.close()
 
 @router.put("/user/{id}", response_model=StandardResponse)
-def update_user(id : str, f_name : str, l_name : str, email : str,
-                password : str, pos : str, dep : str, 
-                isemp : bool, sal : float) :
+def update_user(id : str, body: UserUpdate) -> StandardResponse :
+    """Update an account.
+
+    `password` is optional and defaults to None, meaning the stored hash is left
+    exactly as it was. This is the correction that makes the screen possible at
+    all: the previous signature required a password and re-hashed it as
+    MD5(ID + password), so an administrator renaming an account had to know that
+    account's current password or silently destroy the credential. Supplying a
+    password here resets it instead.
+
+    PASSWORD is therefore absent from the statement unless a reset was asked for,
+    rather than being written on every save.
+    """
     conn = None
     cursor = None
     try:
@@ -356,25 +493,63 @@ def update_user(id : str, f_name : str, l_name : str, email : str,
         if not conn:
             raise HTTPException(status_code=500, detail="Database connection failed")
 
+        user_id = id.strip()
+        f_name, l_name = _clean_names(body.f_name, body.l_name)
+        email = _clean_email(body.email)
+
+        if body.sal is None or body.sal > MAX_SALARY:
+            raise field_error(
+                400, f"Salary cannot be above {MAX_SALARY:,.2f}", "salary"
+            )
+
+        reset_to = None
+        if body.password is not None:
+            problem = validate_password(body.password)
+            if problem:
+                raise field_error(400, problem, "password")
+            reset_to = body.password
+
         cursor = conn.cursor()
 
-        # Update the data
-        sql = '''
-        UPDATE "USER" SET 
-            "F_NAME" = :fname, "L_NAME" = :lname,
-            "EMAIL" = :mail, "PASSWORD" = :pass,
-            "POS" = :pos, "DEP" = :dep,
-            "ISEMP" = :isemp, "SALARY" = :sal
-        WHERE "ID" = :id'''
-        cursor.execute(sql, [f_name.strip(), l_name.strip(), email.strip(),
-                             hashlib.md5((id + password).encode()).hexdigest(), 
-                             pos.strip(), dep.strip(),
-                             'T' if isemp else 'F', sal, id.strip()])
+        cursor.execute('SELECT 1 FROM "USER" WHERE "ID" = :id', [user_id])
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Account not found")
+
+        _check_assignment(cursor, body.dep, body.pos, body.isemp)
+
+        cursor.execute('''
+        SELECT COUNT(*) FROM "USER" WHERE "EMAIL" = :email AND "ID" <> :id
+        ''', [email, user_id])
+        if cursor.fetchone()[0]:
+            raise field_error(409, "That email address is already registered", "email")
+
+        if reset_to is None:
+            sql = '''
+            UPDATE "USER" SET
+                "F_NAME" = :fname, "L_NAME" = :lname,
+                "EMAIL" = :mail, "POS" = :pos, "DEP" = :dep,
+                "ISEMP" = :isemp, "SALARY" = :sal
+            WHERE "ID" = :id'''
+            params = [f_name, l_name, email, body.pos.strip(), body.dep.strip(),
+                      'T' if body.isemp else 'F', body.sal, user_id]
+        else:
+            sql = '''
+            UPDATE "USER" SET
+                "F_NAME" = :fname, "L_NAME" = :lname,
+                "EMAIL" = :mail, "PASSWORD" = :passwd,
+                "POS" = :pos, "DEP" = :dep,
+                "ISEMP" = :isemp, "SALARY" = :sal
+            WHERE "ID" = :id'''
+            params = [f_name, l_name, email, hash_password(user_id, reset_to),
+                      body.pos.strip(), body.dep.strip(),
+                      'T' if body.isemp else 'F', body.sal, user_id]
+
+        cursor.execute(sql, params)
         conn.commit()
 
         return StandardResponse(
             msg="User Updated Successfully",
-            info= f"{id}"
+            info= user_id
         )
 
     except HTTPException:
@@ -391,6 +566,13 @@ def update_user(id : str, f_name : str, l_name : str, email : str,
 
 @router.delete("/user/{id}", response_model=StandardResponse)
 def delete_user(id : str) :
+    """Delete an account.
+
+    Unlike department and position there is nothing pointing at USER, so this
+    needs no guard beyond reporting a row that is not there. Deleting the account
+    you are signed in as is the caller's problem, not this endpoint's: there is no
+    token here to compare the path id against.
+    """
     conn = None
     cursor = None
     try:
@@ -398,16 +580,17 @@ def delete_user(id : str) :
         if not conn:
             raise HTTPException(status_code=500, detail="Database connection failed")
 
+        user_id = id.strip()
         cursor = conn.cursor()
 
-        # Delete the position
-        sql = '''DELETE FROM "USER" WHERE ID = :id'''
-        cursor.execute(sql, [id.strip()])
+        cursor.execute('DELETE FROM "USER" WHERE "ID" = :id', [user_id])
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Account not found")
         conn.commit()
 
         return StandardResponse(
             msg="User Deleted Successfully",
-            info=id
+            info=user_id
         )
 
     except HTTPException:

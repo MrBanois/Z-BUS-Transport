@@ -380,6 +380,13 @@ class ZGap extends StatelessWidget {
 
 /// Square icon control. Material IconButton ships a circular ripple and rounded
 /// hover target that break the hairline/box language of the rest of the UI.
+/// The fixed size of [ZIconAction].
+///
+/// Named rather than written inline because a row of them has to be measured
+/// before it is laid out: the table reserves the width of its action cell, and a
+/// literal on each side would drift the moment the button changed size.
+const double kIconActionSize = 38;
+
 class ZIconAction extends StatelessWidget {
   const ZIconAction({
     super.key,
@@ -403,8 +410,8 @@ class ZIconAction extends StatelessWidget {
         child: InkWell(
           onTap: onPressed,
           child: Container(
-            width: 38,
-            height: 38,
+            width: kIconActionSize,
+            height: kIconActionSize,
             alignment: Alignment.center,
             decoration: BoxDecoration(
               border: Border.all(
