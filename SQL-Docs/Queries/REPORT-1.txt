@@ -1,65 +1,91 @@
+-- Report 1: passengers picked up and dropped off at every station, by month.
+-- Mirrors _station_pickups() in Reports.py. The API binds :range_start and
+-- :range_end; here they are the literal dates for the year 2025
+-- (end is exclusive, i.e. 1 January of the following year).
+
 SELECT
     s.id AS station_id,
-    s.name AS "Station",
+    s.name AS station_name,
     m.month_no,
-    TO_CHAR(TO_DATE(m.month_no, 'MM'), 'Month') AS "Date_Month",
-    NVL(x.pickup_count, 0) AS "Pickup",
-    NVL(x.dropoff_count, 0) AS "Dropoff"
+    NVL(pu.pickup_count, 0) AS "Pickup",
+    NVL(dv.dropoff_count, 0) AS "Dropoff"
+
 FROM station s
+
 CROSS JOIN (
     SELECT LEVEL AS month_no
     FROM dual
     CONNECT BY LEVEL <= 12
 ) m
+
+-- Pickups, grouped by the station each booking starts at
 LEFT JOIN (
     SELECT
-        station_id,
-        month_no,
-        SUM(pickup) AS pickup_count,
-        SUM(dropoff) AS dropoff_count
-    FROM (
-        -- Pickup
-        SELECT
-            rds.station AS station_id,
-            EXTRACT(MONTH FROM b."DATE") AS month_no,
-            tld.passenger AS pickup,
-            0 AS dropoff
-        FROM booking b
-        JOIN booking_detail bd
-            ON b.booking_id = bd.bid
-        JOIN route_detail rds
-            ON bd.srid = rds.rid
-           AND bd.startno = rds.station_no
-        JOIN trip_log_detail tld
-            ON bd.bid = tld.bid
-           AND bd.no = tld.no
-        WHERE b."DATE" >= DATE '2025-01-01'
-          AND b."DATE" < DATE '2026-01-01'
+        rds.station AS station_id,
+        EXTRACT(MONTH FROM b."DATE") AS month_no,
+        COUNT(*) AS pickup_count
 
-        UNION ALL
+    FROM booking b
 
-        -- Dropoff
-        SELECT
-            rde.station AS station_id,
-            EXTRACT(MONTH FROM b."DATE") AS month_no,
-            0 AS pickup,
-            tld.passenger AS dropoff
-        FROM booking b
-        JOIN booking_detail bd
-            ON b.booking_id = bd.bid
-        JOIN route_detail rde
-            ON bd.erid = rde.rid
-           AND bd.endno = rde.station_no
-        JOIN trip_log_detail tld
-            ON bd.bid = tld.bid
-           AND bd.no = tld.no
-        WHERE b."DATE" >= DATE '2025-01-01'
-          AND b."DATE" < DATE '2026-01-01'
-    )
-    GROUP BY station_id, month_no
-) x
-    ON x.station_id = s.id
-   AND x.month_no = m.month_no
+    JOIN booking_detail bd
+        ON b.booking_id = bd.bid
+
+    JOIN schedule sch
+        ON bd.route = sch.rid
+       AND bd.schedule = sch.trip_no
+
+    JOIN route r
+        ON r.id = sch.rid
+
+    JOIN route_detail rds
+        ON bd.srid = rds.rid
+       AND bd.startno = rds.station_no
+
+    WHERE
+        b."DATE" >= DATE '2025-01-01'
+        AND b."DATE" < DATE '2026-01-01'
+
+    GROUP BY
+        rds.station,
+        EXTRACT(MONTH FROM b."DATE")
+) pu
+    ON pu.station_id = s.id
+   AND pu.month_no = m.month_no
+
+-- Dropoffs, grouped by the station each booking ends at
+LEFT JOIN (
+    SELECT
+        rde.station AS station_id,
+        EXTRACT(MONTH FROM b."DATE") AS month_no,
+        COUNT(*) AS dropoff_count
+
+    FROM booking b
+
+    JOIN booking_detail bd
+        ON b.booking_id = bd.bid
+
+    JOIN schedule sch
+        ON bd.route = sch.rid
+       AND bd.schedule = sch.trip_no
+
+    JOIN route r
+        ON r.id = sch.rid
+
+    JOIN route_detail rde
+        ON bd.erid = rde.rid
+       AND bd.endno = rde.station_no
+
+    WHERE
+        b."DATE" >= DATE '2025-01-01'
+        AND b."DATE" < DATE '2026-01-01'
+
+    GROUP BY
+        rde.station,
+        EXTRACT(MONTH FROM b."DATE")
+) dv
+    ON dv.station_id = s.id
+   AND dv.month_no = m.month_no
+
 ORDER BY
     s.id,
     m.month_no;

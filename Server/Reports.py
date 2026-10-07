@@ -160,8 +160,8 @@ def _station_pickups(cursor, start: date, end: date) -> list[dict]:
                 s.id AS station_id,
                 s.name AS station_name,
                 m.month_no,
-                NVL(x.pickup_count, 0),
-                NVL(x.dropoff_count, 0)
+                NVL(pu.pickup_count, 0),
+                NVL(dv.dropoff_count, 0)
 
             FROM station s
 
@@ -171,12 +171,17 @@ def _station_pickups(cursor, start: date, end: date) -> list[dict]:
                 CONNECT BY LEVEL <= 12
             ) m
 
+            -- Pickups and dropoffs are counted in two separate aggregates, each
+            -- grouped by the station it belongs to. The original counted both in
+            -- one aggregate grouped by the PICKUP station, which made every
+            -- dropoff count land in the pickup station's group: the two columns
+            -- came back identical and no station ever saw a dropoff it did not
+            -- also see as a pickup.
             LEFT JOIN (
                 SELECT
                     rds.station AS station_id,
                     EXTRACT(MONTH FROM b."DATE") AS month_no,
-                    COUNT(rds.station) AS pickup_count,
-                    COUNT(rde.station) AS dropoff_count
+                    COUNT(*) AS pickup_count
 
                 FROM booking b
 
@@ -194,6 +199,35 @@ def _station_pickups(cursor, start: date, end: date) -> list[dict]:
                     ON bd.srid = rds.rid
                    AND bd.startno = rds.station_no
 
+                WHERE
+                    b."DATE" >= :range_start
+                    AND b."DATE" < :range_end
+
+                GROUP BY
+                    rds.station,
+                    EXTRACT(MONTH FROM b."DATE")
+            ) pu
+                ON pu.station_id = s.id
+               AND pu.month_no = m.month_no
+
+            LEFT JOIN (
+                SELECT
+                    rde.station AS station_id,
+                    EXTRACT(MONTH FROM b."DATE") AS month_no,
+                    COUNT(*) AS dropoff_count
+
+                FROM booking b
+
+                JOIN booking_detail bd
+                    ON b.booking_id = bd.bid
+
+                JOIN schedule sch
+                    ON bd.route = sch.rid
+                   AND bd.schedule = sch.trip_no
+
+                JOIN route r
+                    ON r.id = sch.rid
+
                 JOIN route_detail rde
                     ON bd.erid = rde.rid
                    AND bd.endno = rde.station_no
@@ -203,11 +237,11 @@ def _station_pickups(cursor, start: date, end: date) -> list[dict]:
                     AND b."DATE" < :range_end
 
                 GROUP BY
-                    rds.station,
+                    rde.station,
                     EXTRACT(MONTH FROM b."DATE")
-            ) x
-                ON x.station_id = s.id
-               AND x.month_no = m.month_no
+            ) dv
+                ON dv.station_id = s.id
+               AND dv.month_no = m.month_no
 
             ORDER BY
                 s.id,
