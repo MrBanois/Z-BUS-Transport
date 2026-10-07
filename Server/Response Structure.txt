@@ -293,33 +293,111 @@ carries it, and why the edit form is allowed to send no password at all.
 ==========================================
 
 /api/report1            (POST)
-    report_title: str
-    date_range: str
-    data: list[dict]
+    A year and the whole year only; 31 December is inside the report.
+    request body :
+        year: int
+    422 missing / non-integer `year`, via FastAPI's normal validation
+        No field errors are reachable here: a year body has no range to reject.
+    response : Report, date_range = str(year)
+        report_title : Station Statistics
+        date_range   : '2025'
+        data         : one row per station, 26 keys in this order:
+            station_id : str
+            Station    : str
+            Pickup_January, Dropoff_January, Pickup_February, Dropoff_February,
+            ... through Pickup_December, Dropoff_December   (int counts)
+            Twelve months are always present per station, 0 where nothing ran,
+            so a quiet month reads as zero rather than an absent key.
 
 /api/report2            (POST)
-    report_title: str
-    date_range: str
-    data: list[dict]
+    request body :
+        year: int
+    422 as for /report1
+    response : Report, date_range = str(year)
+        report_title : Booking Statistics
+        date_range   : '2025'
+        data         : one row per month, twelve rows in calendar order:
+            Month      : 'January' ... 'December'
+            Bookings   : int
+            Seats      : int
+            Cancelled  : int
+            Checked-In : int
+            No-Show    : int
 
 /api/report3            (POST)
-    report_title: str
-    date_range: str
-    data: list[dict]
+    request body :
+        start_date: date   (YYYY-MM-DD)
+        end_date: date     (YYYY-MM-DD, INCLUSIVE; last day included)
+    400 The end of the range cannot be before its start   (field: end_date)
+    422 missing / malformed `start_date` / `end_date`
+    response : Report
+        report_title : User activity
+        date_range   : '2025-04-01 to 2025-04-30'
+        data         : one row per user, ordered by name:
+            User       : str   (F_NAME + ' ' + L_NAME)
+            Bookings   : int
+            Checked-In : int
+            Cancelled  : int
+            No-Show    : int
 
 /api/report4            (POST)
-    report_title: str
-    date_range: str
-    data: list[dict]
+    request body :
+        start_date: date
+        end_date: date     (inclusive)
+    400 / 422 as for /report3
+    response : Report
+        report_title : Route Statistics
+        date_range   : '2025-04-01 to 2025-04-30'
+        data         : exactly seven rows, Monday through Sunday, one column per
+                       route (see notes). Each row:
+            Day      : 'Monday' ... 'Sunday'
+            <route_id> : int passengers  (one key per route id)
+        Notes. Column keys are route ids -- the screen pairs them with /api/route
+        names rather than the server duplicating them. The columns are the
+        active routes plus any route that actually carried trips in the range,
+        sorted by id: a route deactivated mid-history keeps its column, so its
+        passengers do not silently vanish.
+        Every one of the seven days appears even when nothing ran, reading as 0.
 
 /api/report6            (POST)
-    report_title: str
-    date_range: str
-    data: list[dict]
+    request body :
+        start_date: date
+        end_date: date     (inclusive)
+    400 / 422 as for /report3
+    response : Report
+        report_title : Late Trip Statistics
+        date_range   : '2025-04-01 to 2025-04-30'
+        data         : one row per driver, ordered by name:
+            Driver_ID : str
+            Name      : str
+            Total     : int   (all trips in the range)
+            Before_17 : int   (time_start before 17:00)
+            After_17  : int   (time_start at or after 17:00)
+        Before_17 + After_17 always equals Total; the client charts only the two
+        halves so a driver's total is not drawn twice as tall as its own parts.
 
 /api/report7            (POST)
-    report_title: str
-    date_range: str
-    data: list[dict]
+    request body :
+        start_date: date
+        end_date: date     (inclusive)
+    400 / 422 as for /report3
+    response : Report
+        report_title : Trips Statistics
+        date_range   : '2025-04-01 to 2025-04-30'
+        data         : one row per vehicle, ordered by type then id:
+            Type     : str
+            PLATE_NO : str
+            Seat     : int   (capacity)
+            Trips    : int
+        Vehicles with no trips in the range still appear with Trips = 0.
+
+    ----- shared notes on the reports -----
+    All six are a single SELECT with no side effect; calling them cannot change
+    the database.
+    Every endpoint takes a JSON body. Reports 1 and 2 take `year` and lay out
+    that year's twelve months; the other four take the date range and compare
+    against `end + 1 day` internally, which is what makes `end_date` inclusive.
+    There has never been a report5; the numbering is kept because it is how the
+    reports are referred to everywhere else.
 
 ==========================================

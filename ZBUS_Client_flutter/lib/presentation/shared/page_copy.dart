@@ -145,6 +145,7 @@ const analyticsReports = PageCopy(
   kicker: 'ANALYTICS / SERVICE INTELLIGENCE',
   headline: 'READ THE\nMOVEMENT.',
   standfirst:
-      'Explore demand, booking outcomes, passenger behaviour and utilisation. '
-      'Aggregate outside the UI and pass formatted rows.',
+      'Five aggregates — pickups, booking outcomes, user behaviour, routes '
+      'and drivers. Pick a report, set its own dates, then export '
+      'the chart as a picture or the table as a spreadsheet.',
 );

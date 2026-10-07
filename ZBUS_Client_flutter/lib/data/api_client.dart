@@ -360,7 +360,9 @@ class ApiClient {
     'Deleting the position',
   );
 
-  /// `POST /api/user`. [password] omitted assigns the server's default.
+  /// `POST /api/user`. [password] is required by the route, not optional here:
+  /// a create has no stored credential to keep, so the caller decides what this
+  /// account signs in with.
   Future<String> createUser({
     required String firstName,
     required String lastName,
@@ -442,6 +444,74 @@ class ApiClient {
     if (decoded is Map<String, dynamic>) return '${decoded['info'] ?? ''}'.trim();
     throw ApiException('$what returned an unexpected response.');
   }
+
+  // ===========================================================================
+  // Statistic reports
+  // ===========================================================================
+  // Six read-only aggregates. Each takes a JSON body, like every write here,
+  // and each is named for what it reports rather than for its route number: the
+  // numbering has a gap in it (there is no /report5) and nothing about calling
+  // `/report3` tells a reader what came back.
+  //
+  // The end date is inclusive on all four that take a range, so the client sends
+  // the date the user picked rather than one day past it.
+
+  /// `POST /api/report1`. One year: pickups and dropoffs at every station.
+  Future<Map<String, dynamic>> reportStationUsage({required int year}) => _post(
+    '/api/report1',
+    {'year': year},
+    'Station statistics',
+  );
+
+  /// `POST /api/report2`. One year: bookings per month, split by status.
+  Future<Map<String, dynamic>> reportBookingStatus({required int year}) => _post(
+    '/api/report2',
+    {'year': year},
+    'Booking statistics',
+  );
+
+  /// `POST /api/report3`. A date range: what each user did.
+  Future<Map<String, dynamic>> reportUserBehaviour({
+    required DateTime start,
+    required DateTime end,
+  }) => _post('/api/report3', _dateRange(start, end), 'User behaviour report');
+
+  /// `POST /api/report4`. A date range: passengers per route, by weekday.
+  ///
+  /// Column keys are route ids; `/route` supplies the names.
+  Future<Map<String, dynamic>> reportRouteUsage({
+    required DateTime start,
+    required DateTime end,
+  }) => _post('/api/report4', _dateRange(start, end), 'Route usage report');
+
+  /// `POST /api/report6`. A date range: each driver's trips around 17:00.
+  Future<Map<String, dynamic>> reportDriverSchedule({
+    required DateTime start,
+    required DateTime end,
+  }) => _post('/api/report6', _dateRange(start, end), 'Driver schedule report');
+
+  /// `POST /api/report7`. A date range: trips per vehicle.
+  Future<Map<String, dynamic>> reportVehicleTrips({
+    required DateTime start,
+    required DateTime end,
+  }) => _post('/api/report7', _dateRange(start, end), 'Vehicle trips report');
+
+  /// Both dates as `YYYY-MM-DD`, which is what a `date` field on the server
+  /// parses. A full timestamp would be accepted too, but it would imply a time
+  /// of day the caller never chose.
+  Map<String, String> _dateRange(DateTime start, DateTime end) => {
+    'start_date': _isoDate(start),
+    'end_date': _isoDate(end),
+  };
+
+  String _isoDate(DateTime value) =>
+      '${value.year.toString().padLeft(4, '0')}-'
+      '${value.month.toString().padLeft(2, '0')}-'
+      '${value.day.toString().padLeft(2, '0')}';
+
+  /// `GET /api/route`. Every route, active or not, so the columns a report
+  /// produced can be labelled with something a person recognises.
+  Future<List<Map<String, dynamic>>> routes() => _list('/api/route', 'routes');
 
   void dispose() => _client.close();
 }

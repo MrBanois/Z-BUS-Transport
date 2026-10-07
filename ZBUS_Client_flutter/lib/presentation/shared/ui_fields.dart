@@ -8,7 +8,18 @@ class UiOption {
   final String value, label;
 }
 
-enum UiFieldKind { text, number, password, select, toggle }
+enum UiFieldKind { text, number, password, select, toggle, date }
+
+/// `YYYY-MM-DD`, the shape both ends of the API parse and the shape the calendar
+/// writes. Also the shape `DateTime.tryParse` accepts, so a value typed by hand
+/// can be opened in the picker without a second date format to keep in step.
+final RegExp kIsoDatePattern = RegExp(r'^\d{4}-\d{2}-\d{2}$');
+
+/// Format a date the way [kIsoDatePattern] expects.
+String isoDate(DateTime value) =>
+    '${value.year.toString().padLeft(4, '0')}-'
+    '${value.month.toString().padLeft(2, '0')}-'
+    '${value.day.toString().padLeft(2, '0')}';
 
 class UiFieldSpec {
   const UiFieldSpec(
@@ -136,6 +147,7 @@ class UiFields extends StatelessWidget {
               key: ValueKey(field.name),
               field: _withError(field, errors),
               value: values[field.name]?.toString(),
+              calendar: field.kind == UiFieldKind.date,
               onChanged: onChanged == null
                   ? null
                   : (v) => onChanged!(field.name, v),
@@ -210,10 +222,20 @@ class _UiSelect extends StatelessWidget {
 // Controller lifecycle is view state, not business state. Synchronizing external
 // values here keeps focus/cursor stable when a presenter rebuilds after typing.
 class _BoundTextField extends StatefulWidget {
-  const _BoundTextField({super.key, required this.field, this.value, this.onChanged});
+  const _BoundTextField({
+    super.key,
+    required this.field,
+    this.value,
+    this.onChanged,
+    this.calendar = false,
+  });
   final UiFieldSpec field;
   final String? value;
   final ValueChanged<String>? onChanged;
+
+  /// Adds a picker button. Typing stays allowed, so a date can be corrected
+  /// without opening a dialog and a field can still be filled by paste.
+  final bool calendar;
   @override
   State<_BoundTextField> createState() => _BoundTextFieldState();
 }
@@ -237,6 +259,23 @@ class _BoundTextFieldState extends State<_BoundTextField> {
   void dispose() {
     controller.dispose();
     super.dispose();
+  }
+
+  /// Open the calendar and write back what was picked.
+  ///
+  /// The value travels through [widget.onChanged] like any other edit, so the
+  /// presenter ends up with the same string it would have got from typing and
+  /// needs no separate path for a picked date.
+  Future<void> _pickDate(BuildContext context) async {
+    final shown = DateTime.tryParse(widget.value ?? '');
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: shown ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (picked == null || !mounted) return;
+    widget.onChanged?.call(isoDate(picked));
   }
 
   @override
@@ -264,6 +303,16 @@ class _BoundTextFieldState extends State<_BoundTextField> {
           errorText: widget.field.error,
           helperText: widget.field.readOnly ? widget.field.help : null,
           helperStyle: const TextStyle(color: ZColors.muted, fontSize: 12),
+          suffixIcon: widget.calendar
+              ? IconButton(
+                  icon: const Icon(Icons.calendar_month_outlined, size: 17),
+                  color: ZColors.muted,
+                  tooltip: 'Pick a date',
+                  onPressed: widget.field.readOnly || widget.onChanged == null
+                      ? null
+                      : () => _pickDate(context),
+                )
+              : null,
         ),
         onChanged: widget.field.readOnly ? null : widget.onChanged,
       ),

@@ -11,9 +11,11 @@ import 'auth_gate.dart';
 import 'crud_controller.dart';
 import 'crud_controllers.dart';
 import 'crud_host.dart';
+import 'reports_controller.dart';
+import 'reports_host.dart';
 
 class ZBusApp extends StatelessWidget {
-  const ZBusApp({super.key, this.auth, this.account, this.crud});
+  const ZBusApp({super.key, this.auth, this.account, this.crud, this.reports});
 
   /// Injectable so a test can supply a controller backed by a fake repository.
   /// Omitting it builds a controller wired to the real FastAPI server.
@@ -31,6 +33,10 @@ class ZBusApp extends StatelessWidget {
   /// stubs should not have to know the whole set.
   final Map<AppPage, CrudController<Object>>? crud;
 
+  /// The statistic reports screen's state. Injectable for the same reason;
+  /// when omitted the shell creates one against the real server.
+  final ReportsController? reports;
+
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'ZBus Transport',
@@ -40,6 +46,7 @@ class ZBusApp extends StatelessWidget {
       auth: auth ?? AuthController(),
       account: account ?? AccountController(),
       crud: crud,
+      reports: reports,
     ),
   );
 }
@@ -52,10 +59,11 @@ class ZBusApp extends StatelessWidget {
 /// state. Which page may open at all is decided by [AuthController] via
 /// [AppPage.isAllowed].
 class ZBusShell extends StatefulWidget {
-  const ZBusShell({super.key, required this.auth, this.account, this.crud});
+  const ZBusShell({super.key, required this.auth, this.account, this.crud, this.reports});
   final AuthController auth;
   final AccountController? account;
   final Map<AppPage, CrudController<Object>>? crud;
+  final ReportsController? reports;
   @override
   State<ZBusShell> createState() => _ZBusShellState();
 }
@@ -70,6 +78,14 @@ class _ZBusShellState extends State<ZBusShell>
   /// the page: navigating away and back must not re-fetch it.
   late final AccountController _account =
       widget.account ?? AccountController();
+
+  /// The statistic reports screen's state, for the same reason given for
+  /// [_account]: a report that took a round trip to build should survive a
+  /// visit to another screen and back. It is a server aggregate rather than a
+  /// person's record, so nothing about it is cleared on sign-out — the next
+  /// session would see the same numbers if it ran the same report.
+  late final ReportsController _reports =
+      widget.reports ?? ReportsController();
 
   /// One controller per management screen, created lazily and kept for the life
   /// of the session.
@@ -132,6 +148,7 @@ class _ZBusShellState extends State<ZBusShell>
   void dispose() {
     transition.dispose();
     _account.dispose();
+    _reports.dispose();
     // The shell created these, so the shell frees them. Disposing an injected
     // controller would be wrong: the caller that passed it in still holds it.
     final injected = _injected;
@@ -302,6 +319,7 @@ class _ZBusShellState extends State<ZBusShell>
       controller: crudFor(AppPage.employee)! as UserController,
       staffOnly: true,
     ),
+    AppPage.reports => ReportsHost(controller: _reports),
     _ => page.screen,
   };
 }

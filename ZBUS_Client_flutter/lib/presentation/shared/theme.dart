@@ -10,6 +10,35 @@ class ZColors {
   static const accent = Color(0xFFD95645);
   static const success = Color(0xFFB6C7A0);
   static const warning = Color(0xFFE6BB75);
+
+  /// Series colours for charts, in legend order.
+  ///
+  /// A report can have more series than this -- station usage has one per
+  /// station and route usage one per route -- so a chart cycles through the
+  /// list. That is what makes the legend non-optional rather than decoration:
+  /// with twelve colours and ten stations, the legend is the only thing saying
+  /// which bar is which.
+  ///
+  /// Light enough to read against [surface] and far enough apart in hue that
+  /// neighbouring bars in a group do not merge into one block.
+  static const chart = <Color>[
+    Color(0xFFD95645), // accent red
+    Color(0xFFB6C7A0), // sage
+    Color(0xFFE6BB75), // amber
+    Color(0xFF7FB3C8), // sky
+    Color(0xFFA99BC4), // lilac
+    Color(0xFF6FBFA8), // teal
+    Color(0xFFE8907A), // coral
+    Color(0xFFC2C176), // olive
+    Color(0xFF8FA5C9), // steel
+    Color(0xFFD89BB0), // rose
+    Color(0xFF97CBB4), // mint
+    Color(0xFFCBAE87), // tan
+  ];
+
+  /// The colour a series at [index] draws with.
+  static Color series(int index) =>
+      chart[index % chart.length];
 }
 
 class ZTheme {

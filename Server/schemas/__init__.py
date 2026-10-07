@@ -4,5 +4,5 @@ from .user import Userdata, UserCreate, UserUpdate, Department, Position, Profil
 from .reference import DepartmentCreate, DepartmentUpdate, PositionCreate, PositionUpdate
 from .trip import TripLog, TripLogDetail
 from .common import Status, StandardResponse
-from .report import Report
+from .report import Report, YearReportBody, DateRangeReportBody
 from .auth import Credentials, RegisterRequest, LoginUser, LoginResponse
