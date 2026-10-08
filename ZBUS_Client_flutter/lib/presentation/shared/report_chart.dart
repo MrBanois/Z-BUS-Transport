@@ -21,6 +21,22 @@ class ZReportChart extends StatelessWidget {
   /// would push the table around on every year change.
   final double height;
 
+  /// The width a bar chart needs to draw every one of its groups without
+  /// scrolling: one legible slot per category (`60 + 18 per series`) plus the
+  /// y-axis gutter that owns the left edge. The page sizes the chart block
+  /// from this (plus the panel's own padding) so a captured picture holds the
+  /// whole chart and the reader scrolls only when the viewport is narrower. A
+  /// pie has no x-axis to overflow, so it needs no reserved width.
+  static double naturalWidth(ChartView chart) {
+    if (chart.kind != ChartKind.bar ||
+        chart.categories.isEmpty ||
+        chart.series.isEmpty) {
+      return 0;
+    }
+    final slot = 60.0 + (chart.series.length * 18.0);
+    return chart.categories.length * slot + _BarChart._yGutter;
+  }
+
   @override
   Widget build(BuildContext context) => Column(
     // Min, not the default: the page scrolls, so this has to size itself from
@@ -49,6 +65,20 @@ class _BarChart extends StatelessWidget {
 
   final ChartView chart;
 
+  /// The y-axis labels claim this much of the widget's width; the bars start
+  /// after it. The scroll width has to buy that gutter back, or the groups
+  /// overflow the plot by exactly it -- and fl_chart solves an overflow by
+  /// shrinking the gaps between groups, eventually to negative, which put the
+  /// first bar on the y-axis numbers and its neighbours on top of each other.
+  /// Same number as the left titles' reservedSize below.
+  static const double _yGutter = 46;
+
+  /// The gaps fl_chart draws between groups (`groupsSpace`) and between the
+  /// rods of one group (`barsSpace`). [_rodWidth] reserves both out of a slot
+  /// so a group can never grow wider than the slot the width budget gave it.
+  static const double _groupGap = 16;
+  static const double _rodGap = 10;
+
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
@@ -63,7 +93,18 @@ class _BarChart extends StatelessWidget {
         longest = math.max(longest, label.length);
       }
       final rotate = count > 8 || longest > 10;
-      final slot = constraints.maxWidth / count;
+      // The y-axis labels own the left `_yGutter` pixels of the widget
+      // (leftTitles reservedSize below); fl_chart lays the groups out in what
+      // is left. The width budget must reserve that gutter too, or the groups
+      // overflow the plot and fl_chart's overflow handling shrinks their gaps
+      // (down to nothing, then to negative), which is what dragged the first
+      // bar over the y-axis numbers and its neighbours on top of each other.
+      final minGroupWidth = 60.0 + (chart.series.length * 18.0);
+      final minWidth = math.max(
+        constraints.maxWidth,
+        count * minGroupWidth + _yGutter,
+      );
+      final slot = (minWidth - _yGutter) / count;
 
       var highest = 0.0;
       for (final series in chart.series) {
@@ -73,76 +114,78 @@ class _BarChart extends StatelessWidget {
       }
       // A chart of nothing still has to draw an axis. Without a ceiling fl_chart
       // would scale to zero and paint every gridline on top of the baseline.
-      final ceiling =
-          highest <= 0 ? 1.0 : (highest + math.max(1, highest * .1)).ceilToDouble();
+      final ceiling = highest <= 0
+          ? 1.0
+          : (highest + math.max(1, highest * .1)).ceilToDouble();
 
-      return BarChart(
-        BarChartData(
-          maxY: ceiling,
-          barGroups: [
-            for (var x = 0; x < count; x++)
-              BarChartGroupData(
-                x: x,
-                barsSpace: 1,
-                barRods: [
-                  for (var s = 0; s < chart.series.length; s++)
-                    BarChartRodData(
-                      toY: _at(chart.series[s].values, x),
-                      color: ZColors.series(s),
-                      width: _rodWidth(slot, chart.series.length),
-                      // Squared: the rest of the interface is hairline boxes and
-                      // a rounded bar would be the one soft corner on the screen.
-                      borderRadius: BorderRadius.zero,
+      return SizedBox(
+        width: minWidth,
+        child: BarChart(
+          BarChartData(
+            groupsSpace: _groupGap,
+            alignment: BarChartAlignment.start,
+            maxY: ceiling,
+            barGroups: [
+              for (var x = 0; x < count; x++)
+                BarChartGroupData(
+                  x: x,
+                  barsSpace: _rodGap,
+                  barRods: [
+                    for (var s = 0; s < chart.series.length; s++)
+                      BarChartRodData(
+                        toY: _at(chart.series[s].values, x),
+                        color: ZColors.series(s),
+                        width: _rodWidth(slot, chart.series.length),
+                        borderRadius: BorderRadius.zero,
+                      ),
+                  ],
+                ),
+            ],
+            gridData: const FlGridData(drawVerticalLine: false),
+            borderData: FlBorderData(show: false),
+            titlesData: FlTitlesData(
+              topTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
+              rightTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
+              bottomTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  reservedSize: rotate ? 116 : 30,
+                  getTitlesWidget: (value, meta) =>
+                      _category(value, slot, rotate),
+                ),
+              ),
+              leftTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  reservedSize: _yGutter,
+                  getTitlesWidget: (value, meta) => Padding(
+                    padding: const EdgeInsets.only(right: 10),
+                    child: Text(
+                      value == value.roundToDouble()
+                          ? value.toInt().toString()
+                          : value.toStringAsFixed(1),
+                      textAlign: TextAlign.right,
+                      style: ZTheme.mono(10),
                     ),
-                ],
-              ),
-          ],
-          gridData: const FlGridData(drawVerticalLine: false),
-          borderData: FlBorderData(show: false),
-          titlesData: FlTitlesData(
-            topTitles: const AxisTitles(
-              sideTitles: SideTitles(showTitles: false),
-            ),
-            rightTitles: const AxisTitles(
-              sideTitles: SideTitles(showTitles: false),
-            ),
-            bottomTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                reservedSize: rotate ? 116 : 30,
-                getTitlesWidget: (value, meta) =>
-                    _category(value, slot, rotate),
-              ),
-            ),
-            leftTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                reservedSize: 46,
-                getTitlesWidget: (value, meta) => Padding(
-                  padding: const EdgeInsets.only(right: 10),
-                  child: Text(
-                    // Counts are whole; printing 2.0 beside a bar two units tall
-                    // is noise the grid did not need.
-                    value == value.roundToDouble()
-                        ? value.toInt().toString()
-                        : value.toStringAsFixed(1),
-                    textAlign: TextAlign.right,
-                    style: ZTheme.mono(10),
                   ),
                 ),
               ),
             ),
-          ),
-          barTouchData: BarTouchData(
-            touchTooltipData: BarTouchTooltipData(
-              getTooltipColor: (group) => ZColors.surface2,
-              getTooltipItem: (group, groupIndex, rod, rodIndex) =>
-                  BarTooltipItem(
-                    '${_categoryLabel(groupIndex)}\n'
-                    '${rod.toY.toInt()} ${_seriesLabel(rodIndex)}',
-                    ZTheme.mono(11, color: ZColors.ink),
-                    textAlign: TextAlign.center,
-                  ),
+            barTouchData: BarTouchData(
+              touchTooltipData: BarTouchTooltipData(
+                getTooltipColor: (group) => ZColors.surface2,
+                getTooltipItem: (group, groupIndex, rod, rodIndex) =>
+                    BarTooltipItem(
+                      '${_categoryLabel(groupIndex)}\n'
+                      '${rod.toY.toInt()} ${_seriesLabel(rodIndex)}',
+                      ZTheme.mono(11, color: ZColors.ink),
+                      textAlign: TextAlign.center,
+                    ),
+              ),
             ),
           ),
         ),
@@ -190,19 +233,23 @@ class _BarChart extends StatelessWidget {
     );
   }
 
-  /// Bars fill their share of the group, capped so a report with only two
-  /// series does not draw two slabs meeting at a seam, and floored so a bar is
-  /// still visible when a report has a group per station or per route.
-  double _rodWidth(double slot, int series) =>
-      math.max(2, math.min(26, slot / series - 1));
+  /// Bars fill the group's share of the slot: the slot has to carry the gap
+  /// after the group ([_groupGap]) and the gaps between its own rods
+  /// ([_rodGap]), or a group draws wider than the width budget allotted, the
+  /// overflow trick fl_chart into negative gaps. Capped so two series do not
+  /// become one slab, floored so a bar is still visible when a report has a
+  /// group per station or per route.
+  double _rodWidth(double slot, int series) => math.max(
+    6,
+    math.min(24, (slot - _groupGap - (series - 1) * _rodGap) / series),
+  );
 
   String _categoryLabel(int index) =>
       index < 0 || index >= chart.categories.length
       ? ''
       : chart.categories[index];
 
-  String _seriesLabel(int index) =>
-      index < 0 || index >= chart.series.length
+  String _seriesLabel(int index) => index < 0 || index >= chart.series.length
       ? ''
       : chart.series[index].label;
 }
@@ -275,10 +322,7 @@ class ZChartLegend extends StatelessWidget {
                 height: 11,
                 decoration: BoxDecoration(
                   color: ZColors.series(i),
-                  border: Border.all(
-                    color: ZColors.line,
-                    width: .5,
-                  ),
+                  border: Border.all(color: ZColors.line, width: .5),
                 ),
               ),
               const SizedBox(width: 8),

@@ -162,6 +162,44 @@ class ZPanel extends StatelessWidget {
   );
 }
 
+/// A horizontal scroll row whose scrollbar answers the mouse.
+///
+/// A `Scrollbar` only registers drags, track-click paging and wheel scrolling
+/// when it shares a [ScrollController] with its scroll view. Without one it
+/// falls back to the page's primary controller (or nothing), and a bar bound
+/// to the wrong axis — or to nothing — paints but never receives input. This
+/// widget owns one controller and hands it to both sides, so the thumb moves
+/// with the mouse and the track pages on a click.
+class ZHScroll extends StatefulWidget {
+  const ZHScroll({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  State<ZHScroll> createState() => _ZHScrollState();
+}
+
+class _ZHScrollState extends State<ZHScroll> {
+  final ScrollController _scroll = ScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scrollbar(
+    controller: _scroll,
+    thumbVisibility: true,
+    child: SingleChildScrollView(
+      controller: _scroll,
+      scrollDirection: Axis.horizontal,
+      child: widget.child,
+    ),
+  );
+}
+
 class ZPageHeader extends StatelessWidget {
   const ZPageHeader({
     super.key,

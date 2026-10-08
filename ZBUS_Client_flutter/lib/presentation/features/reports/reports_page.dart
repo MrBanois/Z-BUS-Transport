@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../shared/design_system.dart';
@@ -186,7 +188,12 @@ class ReportsPage extends StatelessWidget {
           const ZGap(4),
           Align(
             alignment: Alignment.centerLeft,
-            child: ZButton('Dismiss', secondary: true, compact: true, onPressed: onDismiss),
+            child: ZButton(
+              'Dismiss',
+              secondary: true,
+              compact: true,
+              onPressed: onDismiss,
+            ),
           ),
         ],
         if (notice != null) ...[
@@ -199,7 +206,12 @@ class ReportsPage extends StatelessWidget {
           const ZGap(4),
           Align(
             alignment: Alignment.centerLeft,
-            child: ZButton('Dismiss', secondary: true, compact: true, onPressed: onDismiss),
+            child: ZButton(
+              'Dismiss',
+              secondary: true,
+              compact: true,
+              onPressed: onDismiss,
+            ),
           ),
         ],
         if (plotted) ...[
@@ -240,6 +252,11 @@ class ReportsPage extends StatelessWidget {
 
   /// The chart, with the switch outside the captured area so a picture shows
   /// the report rather than the control used to pick it.
+  ///
+  /// The chart block itself scrolls as one unit: the boundary sits *inside* the
+  /// scroll, wrapping the full-width panel, so a capture records every group at
+  /// its natural width instead of the slice the viewport happened to show. A
+  /// pie never overflows, so it gets no scroll — just the boundary.
   Widget _chart(ReportView result) {
     final chart = result.chartAt(chartIndex);
     return Column(
@@ -262,31 +279,48 @@ class ReportsPage extends StatelessWidget {
           ),
           const ZGap(18),
         ],
-        _boundary(
-          child: ZPanel(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _selectedName.toUpperCase(),
-                  style: ZTheme.mono(15, color: ZColors.ink),
+        if (chart.kind == ChartKind.pie)
+          _boundary(child: ZPanel(child: _block(result, chart)))
+        else
+          LayoutBuilder(
+            builder: (context, constraints) => ZHScroll(
+              child: _boundary(
+                // 48 is the panel's own 24-per-side padding, so the chart's
+                // natural width is never clipped by the panel that carries it.
+                child: SizedBox(
+                  width: math.max(
+                    constraints.maxWidth,
+                    ZReportChart.naturalWidth(chart) + 48,
+                  ),
+                  child: ZPanel(child: _block(result, chart)),
                 ),
-                if (result.dateRange.isNotEmpty) ...[
-                  const SizedBox(height: 7),
-                  ZLabel(result.dateRange, color: ZColors.muted),
-                ],
-                const ZGap(24),
-                ZReportChart(chart),
-                const ZGap(24),
-                ZChartLegend(chart),
-              ],
+              ),
             ),
           ),
-        ),
       ],
     );
   }
+
+  /// What the chart panel carries: the report's name, the range it covered,
+  /// the chart and the legend that decodes its colours.
+  Widget _block(ReportView result, ChartView chart) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Text(
+        _selectedName.toUpperCase(),
+        style: ZTheme.mono(15, color: ZColors.ink),
+      ),
+      if (result.dateRange.isNotEmpty) ...[
+        const SizedBox(height: 7),
+        ZLabel(result.dateRange, color: ZColors.muted),
+      ],
+      const ZGap(24),
+      ZReportChart(chart),
+      const ZGap(24),
+      ZChartLegend(chart),
+    ],
+  );
 
   /// Wrap in the capture boundary when the host provided one; a preview has no
   /// host and therefore nothing to capture.

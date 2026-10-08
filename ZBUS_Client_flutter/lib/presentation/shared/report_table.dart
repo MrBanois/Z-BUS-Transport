@@ -31,8 +31,7 @@ class ZReportTable extends StatelessWidget {
   Widget build(BuildContext context) {
     if (columns.isEmpty || rows.isEmpty) return const SizedBox.shrink();
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
+    return ZHScroll(
       child: SizedBox(
         width: 2 * _pad + labelWidth + (valueWidth * (columns.length - 1)),
         child: Column(
@@ -51,7 +50,9 @@ class ZReportTable extends StatelessWidget {
     // A heavier rule under the header, matching how every other table in the
     // interface separates its labels from its records.
     decoration: BoxDecoration(
-      border: Border(bottom: BorderSide(color: header ? ZColors.ink : ZColors.line)),
+      border: Border(
+        bottom: BorderSide(color: header ? ZColors.ink : ZColors.line),
+      ),
     ),
     child: Row(
       children: [
